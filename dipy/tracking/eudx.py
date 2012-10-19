@@ -100,8 +100,7 @@ class EuDX(object):
 
         Notes
         -------
-        This works as an iterator class because otherwise it could fill your entire memory if you generate many tracks. 
-        Something very common as you can easily generate millions of tracks if you have many seeds.
+        This works as an iterator class because otherwise it could fill your entire memory if you generate many tracks. Something very common as you can easily generate millions of tracks if you have many seeds.
 
         '''
         self.a=np.ascontiguousarray(a.copy())
