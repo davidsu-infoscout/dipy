@@ -6,6 +6,13 @@ from pyglet.gl import *
 
 class Guillotine(Slicer):
     """ Head slicer actor
+
+    Notes
+    ------
+    Coordinate Systems
+    http://www.grahamwideman.com/gw/brain/orientation/orientterms.htm
+    http://www.slicer.org/slicerWiki/index.php/Coordinate_systems
+
     """
 
     def draw(self):
