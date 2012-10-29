@@ -12,6 +12,7 @@ class Guillotine(Slicer):
     Coordinate Systems
     http://www.grahamwideman.com/gw/brain/orientation/orientterms.htm
     http://www.slicer.org/slicerWiki/index.php/Coordinate_systems
+    http://eeg.sourceforge.net/mri_orientation_notes.html
 
     """
 
@@ -119,7 +120,7 @@ if __name__ == '__main__':
     dname = '/usr/share/fsl/data/standard/'
     fname = dname + 'FMRIB58_FA_1mm.nii.gz'
 
-    #fname = '/home/eg309/Data/trento_processed/subj_01/MPRAGE_32/rawbet.nii.gz'
+    fname = '/home/eg309/Data/trento_processed/subj_01/MPRAGE_32/rawbet.nii.gz'
     img=nib.load(fname)
     data = img.get_data()
     data = np.interp(data, [data.min(), data.max()], [0, 255])
