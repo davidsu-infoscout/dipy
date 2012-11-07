@@ -2,6 +2,8 @@ import numpy as np
 from fos import Window, Scene
 from fos.actor.slicer import Slicer
 from pyglet.gl import *
+from fos.coords import rotation_matrix, from_matvec
+from fos import Init, Run
 
 
 class Guillotine(Slicer):
@@ -15,42 +17,24 @@ class Guillotine(Slicer):
     http://eeg.sourceforge.net/mri_orientation_notes.html
 
     """
+    def __init__(self, name, data, affine, 
+                    convention='LAS', look='anteriorz+'):
 
-    def draw(self):
+        data[np.isnan(data)] = 0
+        data = np.interp(data, [data.min(), data.max()], [0, 255])
+        data = data.astype(np.ubyte)
         
-        #i slice
-        if self.show_i: 
-            glPushMatrix()
-            glRotatef(90, 0., 1., 0)
-            glRotatef(90, 0., 0., 1.)
-            self.tex.update_quad(self.texcoords_i, self.vertcoords_i)
-            self.tex.set_state()
-            self.tex.draw()
-            self.tex.unset_state()
-            glPopMatrix()
+        if convention == 'LAS' and look == 'anteriorz+':
+            axis = np.array([1, 0, 0.])
+            theta = -90. 
+            post_mat = from_matvec(rotation_matrix(axis, theta))
+            axis = np.array([0, 0, 1.])
+            theta = -90. 
+            post_mat = np.dot(
+                        from_matvec(rotation_matrix(axis, theta)), 
+                        post_mat)
         
-        #j slice
-        if self.show_j:
-            glPushMatrix()
-            glRotatef(180, 0., 1., 0) # added for fsl convention
-            glRotatef(90, 0., 0., 1.)
-            self.tex.update_quad(self.texcoords_j, self.vertcoords_j)
-            self.tex.set_state()
-            self.tex.draw()
-            self.tex.unset_state()
-            glPopMatrix()
-
-        #k slice
-        if self.show_k:
-            glPushMatrix()
-            glRotatef(90, 1., 0, 0.)
-            glRotatef(90, 0., 0., 1)
-            glRotatef(180, 1., 0., 0.) # added for fsl
-            self.tex.update_quad(self.texcoords_k, self.vertcoords_k)
-            self.tex.set_state()
-            self.tex.draw()
-            self.tex.unset_state()
-            glPopMatrix()
+        super(Guillotine, self).__init__(name, data, affine, post_mat)
 
     def right2left(self, step):
         if self.i + step < self.I:
@@ -116,28 +100,28 @@ class Guillotine(Slicer):
 if __name__ == '__main__':
 
     import nibabel as nib    
-    
+
+    #dname='/home/eg309/Data/trento_processed/subj_03/MPRAGE_32/'
+    #fname = dname + 'T1_flirt_out.nii.gz'
+    #dname = '/home/eg309/Data/111104/subj_05/'
+    #fname = dname + '101_32/DTI/fa.nii.gz'
     dname = '/usr/share/fsl/data/standard/'
     fname = dname + 'FMRIB58_FA_1mm.nii.gz'
-
-    fname = '/home/eg309/Data/trento_processed/subj_01/MPRAGE_32/rawbet.nii.gz'
-    img=nib.load(fname)
+    #fname = '/home/eg309/Data/trento_processed/subj_01/MPRAGE_32/rawbet.nii.gz'
+    img = nib.load(fname)
     data = img.get_data()
-    data = np.interp(data, [data.min(), data.max()], [0, 255])
-
-    from fos import Init, Run
+    affine = img.get_affine()
 
     Init()
 
     window = Window(caption="[F]OS", bgcolor=(0.4, 0.4, 0.9))
     scene = Scene(activate_aabb=False)
-    guil = Guillotine('VolumeSlicer', data)
+
+    guil = Guillotine('VolumeSlicer', data, affine)
+
     scene.add_actor(guil)
     window.add_scene(scene)
     window.refocus_camera()
-
-    #window = Window()
     window.show()
-    #print get_ipython()
 
     Run()
