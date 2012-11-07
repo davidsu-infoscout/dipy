@@ -7,7 +7,7 @@ from fos import Init, Run
 
 
 class Guillotine(Slicer):
-    """ Head slicer actor
+    """ Volume Slicer Actor
 
     Notes
     ------
@@ -19,6 +19,20 @@ class Guillotine(Slicer):
     """
     def __init__(self, name, data, affine, 
                     convention='LAS', look='anteriorz+'):
+        """ Volume Slicer that supports medical conventions
+
+        Parameters
+        ----------
+        name : str
+        data : array, shape (X, Y, Z) or (X, Y, Z, 3) or (X, Y, Z, 4)
+        affine : array, shape (4, 4)
+        convention : str,
+                'RAS' for neurological,
+                'LAS' for radiological (default)
+        look : str,
+                'anteriorz+' look in the subject from the front 
+
+        """
 
         data[np.isnan(data)] = 0
         data = np.interp(data, [data.min(), data.max()], [0, 255])

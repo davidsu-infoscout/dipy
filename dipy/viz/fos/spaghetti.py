@@ -7,15 +7,7 @@ from dipy.viz.fos.guillotine import Guillotine
 from dipy.io.dpy import Dpy
 from dipy.tracking.metrics import downsample
 from fos import Scene
-
-def rotation_matrix(axis, theta_degree):
-    theta = 1. * theta_degree * np.pi / 180.
-    axis = 1. * axis / np.sqrt(np.dot(axis,axis))
-    a = np.cos(theta / 2)
-    b, c, d = - axis * np.sin(theta / 2)
-    return np.array([[a*a + b*b - c*c - d*d, 2*(b*c - a*d), 2*(b*d + a*c)],
-                     [2*(b*c + a*d), a*a + c*c - b*b - d*d, 2*(c*d - a*b)],
-                     [2*(b*d - a*c), 2*(c*d + a*b), a*a + d*d - b*b - c*c]])
+from fos.coords import rotation_matrix
 
 
 if __name__ == '__main__':
@@ -62,8 +54,7 @@ if __name__ == '__main__':
 
     scene = Scene(scenename = 'Main Scene', activate_aabb = False)
 
-    data = np.interp(data, [data.min(), data.max()], [0, 255])    
-    guil = Guillotine('Volume Slicer', data)
+    guil = Guillotine('Volume Slicer', data, affine)
 
     scene.add_actor(guil)
     scene.add_actor(tl)
