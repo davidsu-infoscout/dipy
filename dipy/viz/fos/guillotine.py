@@ -4,7 +4,8 @@ from fos.actor.slicer import Slicer
 from pyglet.gl import *
 from fos.coords import rotation_matrix, from_matvec
 from fos import Init, Run
-
+from PySide.QtCore import Qt
+import copy
 
 class Guillotine(Slicer):
     """ Volume Slicer Actor
@@ -109,7 +110,85 @@ class Guillotine(Slicer):
         self.show_i = bool
         self.show_j = bool
         self.show_k = bool
+    
+    def process_messages(self, messages):
+        msg=messages['key_pressed']
+        #print 'Processing messages in actor', self.name, 
+        #' key_press message ', msg
+        if msg!=None:
+            self.process_keys(msg,None)
 
+    def process_keys(self, symbol, modifiers):
+        """Bind actions to key press.
+        """
+        if symbol == Qt.Key_Left:     
+            print 'Left'
+            if self.i < self.data.shape[0]:
+                self.slice_i(self.i+1)
+            else:
+                self.slice_i(0)
+
+        if symbol == Qt.Key_Left:     
+            print 'Left'
+            if self.i < self.data.shape[0]:
+                self.slice_i(self.i+1)
+            else:
+                self.slice_i(0)
+        
+        if symbol == Qt.Key_Right:     
+            print 'Right'
+            if self.i >=0:
+                self.slice_i(self.i-1)
+            else:
+                self.slice_i(self.data.shape[0]-1)
+
+        if symbol == Qt.Key_Up:
+            print 'Superior'
+            if self.k < self.data.shape[2]:
+                self.slice_k(self.k+1)
+            else:
+                self.slice_k(0)
+
+        if symbol == Qt.Key_Down:
+            print 'Interior'
+            if self.k >= 0:
+                self.slice_k(self.k-1)
+            else:
+                self.slice_k(self.data.shape[2]-1)
+
+        if symbol == Qt.Key_PageUp:
+            print 'Anterior'
+            if self.j < self.data.shape[1]:
+                self.slice_j(self.j+1)
+            else:
+                self.slice_j(0)
+
+        if symbol == Qt.Key_PageDown:
+            print 'Posterior'
+            if self.j >= 0:
+                self.slice_j(self.j-1)
+            else:
+                self.slice_j(self.data.shape[1]-1)
+
+        if symbol == Qt.Key_0:
+            self.show_i = not self.show_i
+            self.show_j = not self.show_j
+            self.show_k = not self.show_k
+
+        if symbol == Qt.Key_1:
+            self.show_i = not self.show_i
+
+        if symbol == Qt.Key_2:
+            self.show_j = not self.show_j
+
+        if symbol == Qt.Key_3:
+            self.show_k = not self.show_k
+
+        if symbol == Qt.Key_R:
+            self.slice_i(self.I / 2)
+            self.slice_j(self.J / 2)
+            self.slice_k(self.K / 2)
+            
 
 if __name__ == '__main__':
 

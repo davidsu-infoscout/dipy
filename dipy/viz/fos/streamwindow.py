@@ -121,7 +121,7 @@ class Window(QtGui.QWidget):
                     bgcolor = (0,0,0), 
                     fullscreen = False, 
                     dynamic = False, 
-                    enable_light = False ):
+                    enable_light = False, right_panel=False ):
         """ Create a window
 
         Parameters
@@ -150,7 +150,9 @@ class Window(QtGui.QWidget):
         rightPanel = RightPanel(self)
         mainLayout = QtGui.QHBoxLayout()
         mainLayout.addWidget(self.glWidget)
-        mainLayout.addWidget(rightPanel)
+
+        if right_panel:
+            mainLayout.addWidget(rightPanel)
 
         self.setLayout(mainLayout)
         self.setWindowTitle(self.tr(caption))

@@ -24,7 +24,7 @@ if __name__ == '__main__':
     T = dpr.read_tracks()
     dpr.close() 
     
-    T = T[:2000]
+    T = T[:20000]
 
     T = [downsample(t, 12) - np.array(data.shape[:3]) / 2. for t in T]
     axis = np.array([1, 0, 0])
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     
     #load initial QuickBundles with threshold 30mm
     #fpkl = dname+'data/subj_05/101_32/DTI/qb_gqi_1M_linear_30.pkl'
-    qb=QuickBundles(T, 30., 12)
+    qb=QuickBundles(T, 20., 12)
     #save_pickle(fpkl,qb)
     #qb=load_pickle(fpkl)
 
