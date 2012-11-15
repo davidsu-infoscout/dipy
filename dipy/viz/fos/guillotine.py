@@ -190,6 +190,18 @@ class Guillotine(Slicer):
             self.slice_k(self.K / 2)
             
 
+def anteriorzplus(xyz):
+    axis = np.array([1, 0, 0.])
+    theta = -90. 
+    post_mat = from_matvec(rotation_matrix(axis, theta))
+    axis = np.array([0, 0, 1.])
+    theta = -90. 
+    post_mat = np.dot(
+                from_matvec(rotation_matrix(axis, theta)), 
+                post_mat)
+
+    return np.dot(post_mat[:3, :3], xyz.T).T
+
 if __name__ == '__main__':
 
     import nibabel as nib    

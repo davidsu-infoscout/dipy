@@ -24,8 +24,17 @@ if __name__ == '__main__':
     T = dpr.read_tracks()
     dpr.close() 
     
-    T = T[:20000]
+    T = T[:2000]
 
+    from fos.coords import img_to_ras_coords, ras_to_las_coords
+    from dipy.viz.fos.guillotine import anteriorzplus
+
+    #T = [ras_to_las_coords(img_to_ras_coords(t, data.shape, affine)) for t in T]
+    #T = [anteriorzplus(t) for t in T]
+
+    #print T[0].dtype
+
+    #"""
     T = [downsample(t, 12) - np.array(data.shape[:3]) / 2. for t in T]
     axis = np.array([1, 0, 0])
     theta = - 90. 
@@ -33,6 +42,7 @@ if __name__ == '__main__':
     axis = np.array([0, 1, 0])
     theta = 180. 
     T = np.dot(T, rotation_matrix(axis, theta))
+    #"""
     
     #load initial QuickBundles with threshold 30mm
     #fpkl = dname+'data/subj_05/101_32/DTI/qb_gqi_1M_linear_30.pkl'
