@@ -13,7 +13,8 @@ from fos.coords import rotation_matrix
 if __name__ == '__main__':
     
     #load T1 volume registered in MNI space 
-    dname='/home/eg309/Devel/fos_legacy/applications/'
+    #dname='/home/eg309/Devel/fos_legacy/applications/'
+    dname = '/home/eleftherios/Data/'
     img = nib.load(dname+'data/subj_05/MPRAGE_32/T1_flirt_out.nii.gz')
     data = img.get_data()
     affine = img.get_affine()
@@ -50,7 +51,7 @@ if __name__ == '__main__':
     w = Window(caption = title, 
                 width = 1200, 
                 height = 800, 
-                bgcolor = (.5, .5, 0.9) )
+                bgcolor = (.5, .5, 0.9), right_panel=True )
 
     scene = Scene(scenename = 'Main Scene', activate_aabb = False)
 
