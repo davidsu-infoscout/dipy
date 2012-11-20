@@ -2,7 +2,7 @@ import numpy as np
 import nibabel as nib
 #fos modules
 from fos import Actor
-from fos import Window, Region
+from fos import Window, Scene
 from fos.actor import Axes, Text3D
 from fos.modelmat import screen_to_model
 import fos.interact.collision as cll
@@ -534,10 +534,10 @@ if __name__ == '__main__':
                 height = 800, 
                 bgcolor = (0.,0.,0.2) )
 
-    #region = Region( regionname = 'Main',
+    #region = Scene( scenename = 'Main',
     #                    extent_min = np.array([-5.0, -5, -5]),
     #                    extent_max = np.array([5, 5 ,5]))
-    region = Region( regionname = 'Main',
+    region = Scene( scenename = 'Main',
                         extent_min = np.array([-5.0, -5, -5]),
                         extent_max = np.array([5, 5 ,5]),
                         activate_aabb = True)

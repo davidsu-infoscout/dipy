@@ -10,7 +10,7 @@ from dipy.io.pickles import load_pickle, save_pickle
 # segmenation
 from dipy.segment.quickbundles import QuickBundles
 # visualization
-from fos import Window, Region
+from fos import Window, Scene
 from fos.actor import Axes, Text3D, Line
 from fos.actor.line import one_colour_per_line
 from bundle_picker import TrackLabeler, track2rgb
@@ -117,7 +117,7 @@ def show_qb_streamlines(tracks,qb):
 		height=800, 
 		bgcolor=(0.,0.,0.2) )
 	# Create a region of the world of actors
-	region = Region(regionname='Main', activate_aabb=False)
+	region = Scene(scenename='Main', activate_aabb=False)
 	# Create actors
 	tl = TrackLabeler('Bundle Picker',
 			qb,qb.downsampled_tracks(),
@@ -141,7 +141,7 @@ def show_tracks_colormaps(tracks, qb, alpha=1):
             width=1200, 
             height=800, 
             bgcolor=(0.,0.,0.2))
-    region = Region(regionname='Main', activate_aabb=False)
+    region = Scene(scenename='Main', activate_aabb=False)
 
     colormap = np.ones((len(tracks), 3))
     counter = 0
@@ -211,6 +211,7 @@ def show_tracks_fvtk(tracks, qb=None, option='only_reps', r=None, opacity=1,
                 colormap = np.ones((len(ctracks), 3))
                 colormap[:,:] = col
                 fvtk.add(r, fvtk.line(ctracks, colormap, opacity=opacity, linewidth=3))
+
         if option == 'biggest_clusters':
             cs=qb.clusters_sizes()
             ci=np.argsort(cs)[:len(cs)-biggest_clusters]            
@@ -222,8 +223,10 @@ def show_tracks_fvtk(tracks, qb=None, option='only_reps', r=None, opacity=1,
                 ctracks=qb.label2tracks(tracks, i)
                 colormap = np.ones((len(ctracks), 3))
                 colormap[:,:] = col
-                #fvtk.add(r, fvtk.line(ctracks, colormap, opacity=opacity, linewidth=3))
-                fvtk.add(r, fvtk.line([centroid], col, opacity=opacity, linewidth=3))
+                fvtk.add(r, fvtk.line(ctracks, colormap, opacity=opacity, linewidth=3))
+                #fvtk.add(r, fvtk.line([centroid], col, opacity=opacity, linewidth=3))
+
+        
 
     fvtk.show(r, size=(700, 700))
 
@@ -430,10 +433,6 @@ def show_best_worse_bas():
 
     return bas10, bas20, pairs
 
-
-
-
-
 def bundle_adjacency(dtracks0, dtracks1, dist):
 
     d01=bundles_distances_mdf(dtracks0,dtracks1)    
@@ -562,11 +561,65 @@ def show_brains(id,dist=10.,down=18, ref=False, remove=0.003, biggest=50):
     #show_tracks_fvtk(tracks, qb, option=options[3], r=ren, opacity=0.8, size=remove*len(tracks))
     #fvtk.record(ren,n_frames=1,out_path=picsd + str(id)+'b',size=(700, 700),bgr_color=(1,1,1)) 
     #fvtk.clear(ren)
-    show_tracks_fvtk(tracks, qb, option=options[5], r=ren, opacity=1, size=20,
+    show_tracks_fvtk(tracks, qb, option=options[5], r=ren, opacity=1, size=3,
                      biggest_clusters=biggest)
-    fvtk.record(ren,n_frames=1,out_path=picsd + str(id)+'b',size=(700, 700),bgr_color=(1,1,1)) 
+    fvtk.record(ren,n_frames=1,out_path=picsd + str(id)+'b',size=(700, 700),bgr_color=(1,1,1))
+
+    #show_tracks_fvtk(tracks, qb, option=options[4], r=ren, opacity=1, size=20,
+    #b
     fvtk.clear(ren)
     return qb
+
+def show_corresp(dist=10.,down=18, ref=False, remove=0.003, biggest=50):
+
+    qb0 = load_qb(0, dist=dist, down=down, ref=ref)
+    tracks=qb0.downsampled_tracks()
+
+    cs=qb0.clusters_sizes()
+    ci=np.argsort(cs)[len(cs)-biggest:]
+
+    #qb.remove_clusters(ci)
+    #qb.virts=None
+    centroids=qb0.virtuals()
+    r=fvtk.ren()
+    r.SetBackground(1,1,1)
+    res0 = np.zeros(3)
+    for (index, i) in enumerate(ci):
+        col=track2rgb(centroids[i])
+        ctracks=qb0.label2tracks(tracks, i)
+        res0[index]=len(ctracks)
+        colormap = np.ones((len(ctracks), 3))
+        colormap[:,:] = col
+        #fvtk.add(r, fvtk.line(ctracks, colormap, opacity=1., linewidth=3))
+    #fvtk.show(r, size=(700, 700))
+    picsd = '/home/eg309/Desktop/pics/'
+    #fvtk.record(r,n_frames=1,out_path=picsd + str(0)+'b',size=(700, 700),bgr_color=(1,1,1))
+    #fvtk.clear(r)
+
+    res = np.zeros((3, 9))
+
+    for j in range(1, 10):
+        qb = load_qb(j, dist=dist, down=down, ref=ref)
+        virts = qb.virtuals()
+        tracks = qb.downsampled_tracks()
+        vis=[]
+        for (index, i) in enumerate(ci):
+            D = bundles_distances_mdf([centroids[i]], virts)
+            #print D
+            arm=np.argmin(D.ravel())
+            print np.argmin(D.ravel()), arm
+            col=track2rgb(virts[arm])
+            ctracks=qb.label2tracks(tracks, arm)
+            res[index, j-1]=len(ctracks)
+            colormap = np.ones((len(ctracks), 3))
+            colormap[:,:] = col
+            #fvtk.add(r, fvtk.line(ctracks, colormap, opacity=1., linewidth=3))        
+        #fvtk.show(r, size=(700, 700))
+        #fvtk.record(r,n_frames=1,out_path=picsd + str(j)+'b',size=(700, 700),bgr_color=(1,1,1))
+
+        #fvtk.clear(r)
+    1/0
+
 
 def stats():
 
@@ -607,13 +660,15 @@ def stats():
 
 if __name__ == '__main__' :
     #qb=show_brains(3, 10000, 25, 0.005)
-    pass
+    #pass
     """
     clusters_sizes=[]
     for i in range(10):
-        qb=show_brains(i, 10000, 25, 0.003)
+        qb=show_brains(i, 10., 18, True, biggest=10)
         clusters_sizes.append(qb.clusters_sizes)
+        
     """
+    show_corresp(10., 18, True, biggest=3)
 
 
     """
