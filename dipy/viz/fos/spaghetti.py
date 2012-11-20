@@ -30,20 +30,11 @@ if __name__ == '__main__':
     from fos.coords import img_to_ras_coords, ras_to_las_coords
     from dipy.viz.fos.guillotine import anteriorzplus
 
-    #T = [ras_to_las_coords(img_to_ras_coords(t, data.shape, affine)) for t in T]
-    #T = [anteriorzplus(t) for t in T]
+    I, J, K = data.shape[:3]
 
-    #print T[0].dtype
+    centershift = img_to_ras_coords(np.array([[I/2., J/2., K/2.]]), affine)
 
-    #"""
-    T = [downsample(t, 12) - np.array(data.shape[:3]) / 2. for t in T]
-    axis = np.array([1, 0, 0])
-    theta = - 90. 
-    T = np.dot(T,rotation_matrix(axis, theta))
-    axis = np.array([0, 1, 0])
-    theta = 180. 
-    T = np.dot(T, rotation_matrix(axis, theta))
-    #"""
+    T = [img_to_ras_coords(t, affine) - centershift  for t in T]
     
     #load initial QuickBundles with threshold 30mm
     #fpkl = dname+'data/subj_05/101_32/DTI/qb_gqi_1M_linear_30.pkl'
@@ -61,7 +52,7 @@ if __name__ == '__main__':
     w = Window(caption = title, 
                 width = 1200, 
                 height = 800, 
-                bgcolor = (.5, .5, 0.9), right_panel=True )
+                bgcolor = (.5, .5, 0.9))
 
     scene = Scene(scenename = 'Main Scene', activate_aabb = False)
 

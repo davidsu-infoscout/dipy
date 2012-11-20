@@ -19,7 +19,7 @@ class Guillotine(Slicer):
 
     """
     def __init__(self, name, data, affine, 
-                    convention='LAS', look='anteriorz+'):
+                    convention='RAS', look='anteriorz+'):
         """ Volume Slicer that supports medical conventions
 
         Parameters
@@ -39,7 +39,8 @@ class Guillotine(Slicer):
         data = np.interp(data, [data.min(), data.max()], [0, 255])
         data = data.astype(np.ubyte)
         
-        if convention == 'LAS' and look == 'anteriorz+':
+        """
+        if convention == 'RAS' and look == 'anteriorz+':
             axis = np.array([1, 0, 0.])
             theta = -90. 
             post_mat = from_matvec(rotation_matrix(axis, theta))
@@ -48,8 +49,9 @@ class Guillotine(Slicer):
             post_mat = np.dot(
                         from_matvec(rotation_matrix(axis, theta)), 
                         post_mat)
-        
-        super(Guillotine, self).__init__(name, data, affine, post_mat)
+        """
+        post_mat = np.eye(4)
+        super(Guillotine, self).__init__(name, data, affine, convention, post_mat)
 
     def right2left(self, step):
         if self.i + step < self.I:
@@ -194,8 +196,8 @@ def anteriorzplus(xyz):
     axis = np.array([1, 0, 0.])
     theta = -90. 
     post_mat = from_matvec(rotation_matrix(axis, theta))
-    axis = np.array([0, 0, 1.])
-    theta = -90. 
+    axis = np.array([0, 1, 0])
+    theta = 180. 
     post_mat = np.dot(
                 from_matvec(rotation_matrix(axis, theta)), 
                 post_mat)
