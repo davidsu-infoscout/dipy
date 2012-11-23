@@ -5,6 +5,7 @@ from fos import Actor, Scene
 from fos.actor import Axes, Text3D
 from fos.modelmat import screen_to_model
 import fos.interact.collision as cll
+from fos.coords import img_to_ras_coords, from_matvec
 from pyglet.gl import *
 from pyglet.lib import load_library
 #dipy modules
@@ -69,8 +70,13 @@ class StreamlineLabeler(Actor):
         super(StreamlineLabeler, self).__init__(name)
 
         if affine is None: self.affine = np.eye(4, dtype = np.float32)
-        else: self.affine = affine      
-         
+        else: self.affine = affine
+        if vol_shape is not None:
+            I, J, K = vol_shape
+            centershift = img_to_ras_coords(np.array([[I/2., J/2., K/2.]]), affine)
+            centeraffine = from_matvec(np.eye(3), centershift.squeeze())
+            affine[:3,3] = affine[:3, 3] - centeraffine[:3, 3]
+        self.glaffine = (GLfloat * 16)(*tuple(affine.T.ravel()))
         self.mouse_x=None
         self.mouse_y=None
         self.cache = {}
@@ -166,6 +172,7 @@ class StreamlineLabeler(Actor):
             glColorPointer(4,GL_FLOAT,0,self.virtuals_colors.ctypes.data)
             glLineWidth(self.virtuals_line_width)
             glPushMatrix()
+            glMultMatrixf(self.glaffine)
             if isinstance(self.virtuals_first, tuple): print '>> first Tuple'
             if isinstance(self.virtuals_count, tuple): print '>> count Tuple'
             glib.glMultiDrawArrays(GL_LINE_STRIP, 
@@ -179,6 +186,7 @@ class StreamlineLabeler(Actor):
             glColorPointer(4,GL_FLOAT,0,self.tracks_colors.ctypes.data)
             glLineWidth(self.tracks_line_width)
             glPushMatrix()
+            glMultMatrixf(self.glaffine)
             glib.glMultiDrawArrays(GL_LINE_STRIP, 
                                     self.tracks_visualized_first.ctypes.data, 
                                     self.tracks_visualized_count.ctypes.data, 

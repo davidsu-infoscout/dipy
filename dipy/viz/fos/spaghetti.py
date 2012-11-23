@@ -32,9 +32,8 @@ if __name__ == '__main__':
 
     I, J, K = data.shape[:3]
 
-    centershift = img_to_ras_coords(np.array([[I/2., J/2., K/2.]]), affine)
-
-    T = [img_to_ras_coords(t, affine) - centershift  for t in T]
+    #centershift = img_to_ras_coords(np.array([[I/2., J/2., K/2.]]), affine)
+    #T = [img_to_ras_coords(t, affine) - centershift  for t in T]
     
     #load initial QuickBundles with threshold 30mm
     #fpkl = dname+'data/subj_05/101_32/DTI/qb_gqi_1M_linear_30.pkl'
@@ -45,8 +44,9 @@ if __name__ == '__main__':
     #create the interaction system for tracks 
     tl = StreamlineLabeler('Bundle Picker', 
                         qb,qb.downsampled_tracks(), 
-                        vol_shape=None, 
-                        tracks_alpha=1)   
+                        vol_shape=data.shape[:3], 
+                        tracks_alpha=1,
+                        affine=affine)
 
     title = 'Streamline Interaction and Segmentation'
     w = Window(caption = title, 
