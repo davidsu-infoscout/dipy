@@ -13,8 +13,8 @@ from fos.coords import rotation_matrix
 if __name__ == '__main__':
     
     #load T1 volume registered in MNI space 
-    #dname='/home/eg309/Devel/fos_legacy/applications/'
-    dname = '/home/eleftherios/Data/'
+    dname='/home/eg309/Devel/fos_legacy/applications/'
+    #dname = '/home/eleftherios/Data/'
     img = nib.load(dname+'data/subj_05/MPRAGE_32/T1_flirt_out.nii.gz')
     data = img.get_data()
     affine = img.get_affine()

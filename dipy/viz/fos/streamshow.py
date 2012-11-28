@@ -60,6 +60,30 @@ def track2rgb(track):
     return orient2rgb(track[0] - track[-1])
 
 
+def apply_transformation(ijk, affine):
+    """ Apply a 4x4 affine transformation
+
+    Parameters
+    ----------
+    ijk : array, shape (N, 3)
+        image coordinates
+    affine : array, shape (4, 4)
+        transformation matrix 
+
+    Returns
+    -------
+    xyz : array, shape (N, 3)
+        world coordinates in RAS (Neurological Convention)
+
+    """
+
+    ijk = ijk.T
+    ijk1 = np.vstack((ijk, np.ones(ijk.shape[1])))
+    xyz1 = np.dot(affine, ijk1)
+    xyz = xyz1[:-1, :]
+    return xyz.T
+
+
 class StreamlineLabeler(Actor):   
     
     def __init__(self, name,qb, tracks, reps='exemplars',colors=None, vol_shape=None, virtuals_line_width=5.0, tracks_line_width=2.0, virtuals_alpha=1.0, tracks_alpha=0.6, affine=None, verbose=False):
@@ -77,6 +101,7 @@ class StreamlineLabeler(Actor):
             centeraffine = from_matvec(np.eye(3), centershift.squeeze())
             affine[:3,3] = affine[:3, 3] - centeraffine[:3, 3]
         self.glaffine = (GLfloat * 16)(*tuple(affine.T.ravel()))
+        self.glaff = affine
         self.mouse_x=None
         self.mouse_y=None
         self.cache = {}
@@ -418,8 +443,8 @@ class StreamlineLabeler(Actor):
 
         #print 'peak virtuals ', near, far, x, y
         # Compute distance of virtuals from screen and from the line defined by the two points above
-        tmp = np.array([cll.mindistance_segment2track_info(near, far, xyz) \
-                        for xyz in self.virtuals])
+        tmp = np.array([cll.mindistance_segment2track_info(near, far,
+            apply_transformation(xyz, self.glaff)) for xyz in self.virtuals])
         line_distance, screen_distance = tmp[:,0], tmp[:,1]
         if False: # basic algoritm:
             # Among the virtuals within a range to the line (i.e. < min_dist) return the closest to the screen:
