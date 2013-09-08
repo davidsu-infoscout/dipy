@@ -1670,39 +1670,39 @@ def slicer(ren, vol, voxsz=(1.0, 1.0, 1.0), affine=None, contours=1,
 
                 im.SetScalarComponentFromFloat(i, j, k, 0, vol[i, j, k])
 
-    Contours = []
-    for le in levels:
-        # An isosurface, or contour value of 500 is known to correspond to the
-        # skin of the patient. Once generated, a vtkPolyDataNormals filter is
-        # is used to create normals for smooth surface shading during rendering.
-        # The triangle stripper is used to create triangle strips from the
-        # isosurface these render much faster on may systems.
-        skinExtractor = vtk.vtkContourFilter()
-        # skinExtractor.SetInputConnection(im.GetOutputPort())
-        if major_version <= 5:
-            skinExtractor.SetInput(im)
-        else:
-            skinExtractor.SetInputData(im)
-        skinExtractor.SetValue(0, le)
-        skinNormals = vtk.vtkPolyDataNormals()
-        skinNormals.SetInputConnection(skinExtractor.GetOutputPort())
-        skinNormals.SetFeatureAngle(60.0)
-        skinStripper = vtk.vtkStripper()
-        skinStripper.SetInputConnection(skinNormals.GetOutputPort())
-        skinMapper = vtk.vtkPolyDataMapper()
-        skinMapper.SetInputConnection(skinStripper.GetOutputPort())
-        skinMapper.ScalarVisibilityOff()
-        skin = vtk.vtkActor()
-        skin.SetMapper(skinMapper)
-        if colors == None:
-            skin.GetProperty().SetDiffuseColor(1, .49, .25)
-        else:
-            colorskin = colors[le]
-            skin.GetProperty().SetDiffuseColor(colorskin[0], colorskin[1], colorskin[2])
-        skin.GetProperty().SetSpecular(.3)
-        skin.GetProperty().SetSpecularPower(20)
+    # Contours = []
+    # for le in levels:
+    #     # An isosurface, or contour value of 500 is known to correspond to the
+    #     # skin of the patient. Once generated, a vtkPolyDataNormals filter is
+    #     # is used to create normals for smooth surface shading during rendering.
+    #     # The triangle stripper is used to create triangle strips from the
+    #     # isosurface these render much faster on may systems.
+    #     skinExtractor = vtk.vtkContourFilter()
+    #     # skinExtractor.SetInputConnection(im.GetOutputPort())
+    #     if major_version <= 5:
+    #         skinExtractor.SetInput(im)
+    #     else:
+    #         skinExtractor.SetInputData(im)
+    #     skinExtractor.SetValue(0, le)
+    #     skinNormals = vtk.vtkPolyDataNormals()
+    #     skinNormals.SetInputConnection(skinExtractor.GetOutputPort())
+    #     skinNormals.SetFeatureAngle(60.0)
+    #     skinStripper = vtk.vtkStripper()
+    #     skinStripper.SetInputConnection(skinNormals.GetOutputPort())
+    #     skinMapper = vtk.vtkPolyDataMapper()
+    #     skinMapper.SetInputConnection(skinStripper.GetOutputPort())
+    #     skinMapper.ScalarVisibilityOff()
+    #     skin = vtk.vtkActor()
+    #     skin.SetMapper(skinMapper)
+    #     if colors == None:
+    #         skin.GetProperty().SetDiffuseColor(1, .49, .25)
+    #     else:
+    #         colorskin = colors[le]
+    #         skin.GetProperty().SetDiffuseColor(colorskin[0], colorskin[1], colorskin[2])
+    #     skin.GetProperty().SetSpecular(.3)
+    #     skin.GetProperty().SetSpecularPower(20)
 
-        Contours.append(skin)
+    #     Contours.append(skin)
 
     # An outline provides context around the data.
     outlineData = vtk.vtkOutlineFilter()
@@ -1806,12 +1806,12 @@ def slicer(ren, vol, voxsz=(1.0, 1.0, 1.0), affine=None, contours=1,
         for cor in coronals:
             ren.AddActor(cor)
 
-    if contours:
-        cnt = 0
-        for actor in Contours:
-            actor.GetProperty().SetOpacity(opacities[cnt])
-            ren.AddActor(actor)
-            cnt += 1
+    # if contours:
+    #     cnt = 0
+    #     for actor in Contours:
+    #         actor.GetProperty().SetOpacity(opacities[cnt])
+    #         ren.AddActor(actor)
+    #         cnt += 1
 
     # Turn off bone for this example.
     # bone.VisibilityOff()
