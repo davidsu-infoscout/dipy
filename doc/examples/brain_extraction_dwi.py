@@ -66,7 +66,14 @@ plt.subplot(1, 2, 1).set_axis_off()
 plt.imshow(data[:, :, sli], cmap='gray')
 plt.subplot(1, 2, 2).set_axis_off()
 plt.imshow(b0_mask[:, :, sli], cmap='gray')
-plt.savefig('median_otsu.png')
+#plt.savefig('median_otsu.png')
+
+from skimage import exposure
+im = data[:, :, sli]
+p2 = np.percentile(im, 2)
+p98 = np.percentile(im, 98)
+im2 = exposure.rescale_intensity(im, in_range=(p2, p98))
+1/0
 
 """
 .. figure:: median_otsu.png
@@ -91,3 +98,5 @@ b0_img_crop = nib.Nifti1Image(
     b0_mask_crop.astype(np.float32), img.get_affine())
 nib.save(mask_img_crop, fname + '_binary_mask_crop.nii.gz')
 nib.save(b0_img_crop, fname + '_mask_crop.nii.gz')
+
+
