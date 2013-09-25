@@ -70,10 +70,25 @@ plt.imshow(b0_mask[:, :, sli], cmap='gray')
 
 from skimage import exposure
 im = data[:, :, sli]
-p2 = np.percentile(im, 2)
-p98 = np.percentile(im, 98)
-im2 = exposure.rescale_intensity(im, in_range=(p2, p98))
-1/0
+
+def exposu(im, low, high):
+
+	p2 = np.percentile(im, low)
+	p98 = np.percentile(im, high)
+	im2 = exposure.rescale_intensity(im, in_range=(p2, p98))
+	return im2
+
+im2 = exposu(data[:, :, sli], 5, 99)
+im3 = exposu(b0_mask[:, :, sli], 5, 99)
+
+cmap = 'gray'
+plt.figure('Brain segmentation')
+plt.subplot(1, 2, 1).set_axis_off()
+plt.imshow(im2, cmap=cmap)
+plt.subplot(1, 2, 2).set_axis_off()
+plt.imshow(im3, cmap=cmap)
+#plt.subplot(1, 3, 3).set_axis_off()
+#plt.imshow(data[:, :, sli], cmap=cmap)
 
 """
 .. figure:: median_otsu.png
