@@ -2,6 +2,7 @@
 import nibabel as nib
 from os.path import expanduser, join, dirname, realpath
 from dipy.viz import fvtk
+from dipy.reconst.dti import TensorModel, fractional_anisotropy
 
 
 def record_slice(fname, data, k, show=False):
@@ -9,6 +10,37 @@ def record_slice(fname, data, k, show=False):
     fvtk.add(ren, fvtk.slicer(data, plane_k=[k]))
     if show: fvtk.show(ren)
     fvtk.record(ren, out_path=fname, size=(600, 600))
+
+
+def estimate_response(data, w=10):
+
+    ci, cj, ck = np.array(data.shape[:3]) / 2
+
+    roi = data[ci - w: ci + w,
+               cj - w: cj + w,
+               ck - w: ck + w]
+
+    tenfit = ten.fit(roi)
+
+    FA = fractional_anisotropy(tenfit.evals)
+
+    FA[np.isnan(FA)] = 0
+
+    indices = np.where(FA > 0.7)
+
+    lambdas = tenfit.evals[indices][:, :2]
+
+    S0s = roi[indices][:, np.nonzero(gtab.b0s_mask)[0]]
+
+    S0 = np.mean(S0s)
+
+    l01 = np.mean(lambdas, axis=0)
+
+    evals = np.array([l01[0], l01[1], l01[1]])
+
+    response = (evals, S0)
+
+    return response
 
 
 home = expanduser("~")
@@ -74,8 +106,6 @@ record_slice(fname2_slice, data2[..., b0_index], k=data2.shape[2]/2)
 
 print('>>> 4. Calculate FA...')
 
-from dipy.reconst.dti import TensorModel
-
 ten = TensorModel(gtab)
 tenfit = ten.fit(data2, mask2)
 fname2_fa = join(dname, 'dwi_nlm_fa_1x1x1.nii.gz')
@@ -84,9 +114,13 @@ nib.save(nib.Nifti1Image(tenfit.fa, affine2), fname2_fa)
 fname_slice_fa = 'dwi_nlm_slice_FA_1x1x1.png'
 record_slice(fname_slice_fa, tenfit.fa, k=data2.shape[2]/2)
 
+
+
+
 print('>>> 5. Warp T1 to S0 using ANTS...')
 
 fT1 = join(dname, 't1.nii.gz')
+fT1_flirt = join(dname, 't1_flirt.nii.gz')
 fS0 = join(dname, 'dwi_nlm_S0_1x1x1.nii.gz')
 fFA = join(dname, 'dwi_nlm_fa_1x1x1.nii.gz')
 fT1wS0 = join(dname, 't1_brain_warped_S0.nii.gz')
@@ -101,16 +135,63 @@ del img_T1
 
 from dipy.external.fsl import pipe
 
-# br1 = "[" + fS0 + ", " + fT1 + ", 1, 4]"
-# br2 = "[" + fFA + ", " + fT1 + ", 1.5, 4]"
+flirt_cmd = "flirt -in " + fT1 + " -ref " + fFA + " -out " + fT1_flirt
+print(flirt_cmd)
+pipe(flirt_cmd)
 
-# cmd1 = "ANTS 3 -m CC" + br1 + " -m CC" + br2 + " -o MultiVar -i 75x75x10 -r Gauss[3,0] -t SyN[0.25]"
-# cmd2 = "WarpImageMultiTransform 3 " + fT1 + " " + fT1wS0 + " -R " + fS0 + " " + fdef + "Warp.nii.gz " + fdef + "Affine.txt"
+br1 = "[" + fS0 + ", " + fT1_flirt + ", 1, 4]"
+br2 = "[" + fFA + ", " + fT1_flirt + ", 1.5, 4]"
 
-# print(cmd1)
-# pipe(cmd1)
-# print(cmd2)
-# pipe(cmd2)
+ants_cmd1 = "ANTS 3 -m CC" + br1 + " -m CC" + br2 + " -o MultiVar -i 75x75x10 -r Gauss[3,0] -t SyN[0.25]"
+ants_cmd2 = "WarpImageMultiTransform 3 " + fT1_flirt + " " + fT1wS0 + " -R " + fS0 + " " + fdef + "Warp.nii.gz " + fdef + "Affine.txt"
+
+print(ants_cmd1)
+pipe(ants_cmd1)
+print(ants_cmd2)
+pipe(ants_cmd2)
 
 print('>>> 6. Use freesurfer to create the labels...')
+
+freesurfer_cmd = "recon-all -subjid MPI_T1wS0 -i " + fT1wS0 + " -all"
+print(freesurfer_cmd)
+pipe(freesurfer_cmd)
+
+print('>>> 7. Generate CSD-based streamlines')
+
+response = estimate_response(data)
+
+from dipy.reconst.csdeconv import ConstrainedSphericalDeconvModel
+
+csd_model = ConstrainedSphericalDeconvModel(gtab, response)
+
+from dipy.data import get_sphere
+sphere = get_sphere('symmetric362')
+
+from dipy.reconst.odf import peaks_from_model
+peaks = peaks_from_model(model=csd_model,
+                         data=data_dmri,
+                         mask=mask,
+                         sphere=sphere,
+                         relative_peak_threshold=0.8,
+                         min_separation_angle=45,
+                         return_odf=False,
+                         return_sh=True,
+                         normalize_peaks=False,
+                         sh_order=8,
+                         npeaks=5,
+                         parallel=True, nbr_process=6)
+
+from dipy.tracking.eudx import EuDX
+
+eu = EuDX(tenfit.fa,
+          peaks.peak_indices[..., 0],
+          seeds=10**4,
+          odf_vertices=sphere.vertices,
+          a_low=0.1)
+
+streamlines = [streamline for streamline in eu]
+
+streamlines_trk = ((sl, None, None) for sl in streamlines)
+sl_fname = 'csd_streamlines.trk'
+nib.trackvis.write(sl_fname, streamlines_trk, points_space='rasmm')
 
