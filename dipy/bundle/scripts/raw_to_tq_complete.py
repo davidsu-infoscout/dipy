@@ -1,5 +1,6 @@
 
 import nibabel as nib
+from os import environ
 from os.path import expanduser, join, dirname, realpath
 from dipy.viz import fvtk
 from dipy.reconst.dti import TensorModel, fractional_anisotropy
@@ -14,38 +15,28 @@ def record_slice(fname, data, k, show=False):
 
 def estimate_response(data, w=10):
 
+    ten = TensorModel(gtab)
     ci, cj, ck = np.array(data.shape[:3]) / 2
-
-    roi = data[ci - w: ci + w,
-               cj - w: cj + w,
-               ck - w: ck + w]
-
+    roi = data[ci - w: ci + w, cj - w: cj + w, ck - w: ck + w]
     tenfit = ten.fit(roi)
-
     FA = fractional_anisotropy(tenfit.evals)
-
     FA[np.isnan(FA)] = 0
-
     indices = np.where(FA > 0.7)
-
     lambdas = tenfit.evals[indices][:, :2]
-
     S0s = roi[indices][:, np.nonzero(gtab.b0s_mask)[0]]
-
     S0 = np.mean(S0s)
-
     l01 = np.mean(lambdas, axis=0)
-
     evals = np.array([l01[0], l01[1], l01[1]])
-
     response = (evals, S0)
 
     return response
 
 
+
 home = expanduser("~")
 dname = join(home, 'Data', 'MPI_elef')
 fname = join(dname, 'dwi_nlm.nii.gz')
+subjid = 'MPI_T1wS0'
 
 print('>>> 1. Loading Raw data, b-values and masking background...')
 
@@ -114,9 +105,6 @@ nib.save(nib.Nifti1Image(tenfit.fa, affine2), fname2_fa)
 fname_slice_fa = 'dwi_nlm_slice_FA_1x1x1.png'
 record_slice(fname_slice_fa, tenfit.fa, k=data2.shape[2]/2)
 
-
-
-
 print('>>> 5. Warp T1 to S0 using ANTS...')
 
 fT1 = join(dname, 't1.nii.gz')
@@ -152,25 +140,33 @@ pipe(ants_cmd2)
 
 print('>>> 6. Use freesurfer to create the labels...')
 
-freesurfer_cmd = "recon-all -subjid MPI_T1wS0 -i " + fT1wS0 + " -all"
+freesurfer_cmd = "recon-all -subjid " + subjid + " -i " + fT1wS0 + " -all"
 print(freesurfer_cmd)
 pipe(freesurfer_cmd)
 
-print('>>> 7. Generate CSD-based streamlines')
+dname_subjs = environ['SUBJECTS_DIR']
+fwparc = join(dname_subjs, subjid, 'mri', 'wmparc.mgz')
+fwparc_nii = join(dname_subjs, subjid, 'mri', 'wmparc.nii.gz')
 
-response = estimate_response(data)
+mri_convert_cmd = "mri_convert " + fwparc + " " + fwparc_nii
+print(mri_convert_cmd)
+pipe(mri_convert_cmd)
+
+print('>>> 7. Generate CSD-based streamlines...')
+
+response = estimate_response(data2, w=20)
 
 from dipy.reconst.csdeconv import ConstrainedSphericalDeconvModel
 
 csd_model = ConstrainedSphericalDeconvModel(gtab, response)
 
 from dipy.data import get_sphere
-sphere = get_sphere('symmetric362')
+sphere = get_sphere('symmetric724')
 
 from dipy.reconst.odf import peaks_from_model
 peaks = peaks_from_model(model=csd_model,
-                         data=data_dmri,
-                         mask=mask,
+                         data=data2,
+                         mask=mask2,
                          sphere=sphere,
                          relative_peak_threshold=0.8,
                          min_separation_angle=45,
@@ -181,17 +177,31 @@ peaks = peaks_from_model(model=csd_model,
                          npeaks=5,
                          parallel=True, nbr_process=6)
 
+from dipy.io.pickles import save_pickle
+save_pickle('csd_peaks.pkl', peaks)
+
 from dipy.tracking.eudx import EuDX
 
 eu = EuDX(tenfit.fa,
           peaks.peak_indices[..., 0],
-          seeds=10**4,
+          seeds=5*10**6,
           odf_vertices=sphere.vertices,
           a_low=0.1)
 
-streamlines = [streamline for streamline in eu]
+streamlines = [streamline + 0.5 for streamline in eu]
 
 streamlines_trk = ((sl, None, None) for sl in streamlines)
-sl_fname = 'csd_streamlines.trk'
-nib.trackvis.write(sl_fname, streamlines_trk, points_space='rasmm')
+sl_fname = join(dname, 'csd_streamlines.trk')
 
+trk_header = nib.trackvis.empty_header()
+nib.trackvis.aff_to_hdr(affine2, trk_header, True, True)
+trk_header['dim'] = tenfit.fa.shape
+trk_header['n_count'] = len(streamlines)
+nib.trackvis.write(sl_fname, streamlines_trk, trk_header, points_space='voxel')
+
+print('>>> 8. Use tract_querier to extract known bundles...')
+
+bundles_base_name = join(dname, 'test.trk')
+cmd_tq = "tract_querier -t " + sl_fname + " -a " + fwparc_nii + " -q freesurfer_queries.qry -o " + bundles_base_name
+print(cmd_tq)
+pipe(cmd_tq)
