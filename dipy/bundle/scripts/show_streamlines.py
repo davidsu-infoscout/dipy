@@ -10,10 +10,19 @@ home = expanduser("~")
 dname = join(home, 'Data', 'MPI_elef')
 subjid = 'MPI_T1wS0'
 
-fname = join(dname, 'test.trk_cst.right.trk')
+from glob import glob
+fnames = glob(join(dname, "*.trk" ))
+
+#fname = join(dname, 'test_csd.trk_cst.left.trk')
+#fname = join(dname, 'test_csd.trk_cst.right.trk')
+#fname = join(dname, 'test_csd.trk_af.right.trk')
+#fname = join(dname, 'test_csd.trk_ilf.right.trk')
+#fname = join(dname, 'test_csd.trk_ilf.left.trk')
+#fname = join(dname, 'csd_streamlines.trk')
 
 streams, hdr = tv.read(fname, points_space='rasmm')
 streamlines = [s[0] for s in streams]
+streamlines = streamlines[:3000]
 
 from dipy.viz import fvtk
 
