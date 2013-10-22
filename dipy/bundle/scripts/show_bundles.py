@@ -7,6 +7,7 @@ from dipy.viz import fvtk
 from dipy.reconst.dti import TensorModel
 from dipy.viz.colormap import line_colors
 
+
 def show_bundles(fname):
 
     ren = fvtk.ren()
