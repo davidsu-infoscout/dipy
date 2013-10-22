@@ -16,6 +16,7 @@ def record_slice(fname, data, k, show=False):
 home = expanduser("~")
 dname = join(home, 'Data', 'MPI_elef')
 fname = join(dname, 'dwi_nlm.nii.gz')
+fencoding = join(dname, 'encoding.b')
 subjid = 'MPI'
 
 print('>>> Loading Raw data, b-values and masking background...')
@@ -25,7 +26,6 @@ data = img.get_data()
 affine = img.get_affine()
 zooms = img.get_header().get_zooms()[:3]
 
-fencoding = join(dname, 'encoding.b')
 bmat = np.loadtxt(fencoding)
 
 from dipy.core.gradients import gradient_table

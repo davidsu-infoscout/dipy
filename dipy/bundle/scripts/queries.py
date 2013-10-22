@@ -12,7 +12,6 @@ dname = join(home, 'Data', 'MPI_elef')
 subjid = 'MPI'
 dname_subjs = environ['SUBJECTS_DIR']
 
-dname_subjs = environ['SUBJECTS_DIR']
 fwmparc_ants_nii = join(dname_subjs, subjid, 'mri', 'wmparc_ants_S0.nii.gz')
 sl_fname = join(dname, 'csd_streamlines.trk')
 
