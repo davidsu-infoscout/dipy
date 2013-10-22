@@ -27,16 +27,24 @@ from dipy.core.gradients import gradient_table
 
 gtab = gradient_table(bmat[:, -1], bmat[:, :-1])
 
+print('>>> Calculate FA for tracking threshold')
+
 ten_model = TensorModel(gtab)
 ten_fit = ten_model.fit(data, mask)
 FA = ten_fit.fa
 
+print('>>> Estimating response...')
+
 response, _ = auto_response(gtab, data, w=20)
+
+print('>>> Constrained Spherical Deconvolution...')
 
 csd_model = ConstrainedSphericalDeconvModel(gtab, response)
 
 from dipy.data import get_sphere
 sphere = get_sphere('symmetric724')
+
+print('>>> Find peaks...')
 
 from dipy.reconst.odf import peaks_from_model
 peaks = peaks_from_model(model=csd_model,
@@ -52,6 +60,8 @@ peaks = peaks_from_model(model=csd_model,
                          npeaks=5,
                          parallel=True,
                          nbr_process=6)
+
+print('>>> Start tracking...')
 
 from dipy.tracking.eudx import EuDX
 
@@ -71,21 +81,6 @@ nib.trackvis.aff_to_hdr(affine, trk_header, True, True)
 trk_header['dim'] = peaks.gfa.shape
 trk_header['n_count'] = len(streamlines)
 nib.trackvis.write(sl_fname, streamlines_trk, trk_header, points_space='voxel')
-
-print('>>> 8. Use tract_querier to extract known bundles...')
-
-dname_subjs = environ['SUBJECTS_DIR']
-fwparc = join(dname_subjs, subjid, 'mri', 'wmparc.mgz')
-fwparc_nii = join(dname_subjs, subjid, 'mri', 'wmparc.nii.gz')
-
-bundles_base_name = join(dname, 'test_csd.trk')
-cmd_tq = "tract_querier -t " + sl_fname + " -a " + fwparc_nii + " -q freesurfer_queries.qry -o " + bundles_base_name
-print(cmd_tq)
-
-# Be careful tract_query uses a lot of memory you may
-# want to delete all other variables before you call this command
-from dipy.external import pipe
-pipe(cmd_tq)
 
 
 
