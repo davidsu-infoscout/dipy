@@ -1,4 +1,4 @@
-brain_extraction_dwi.py
+# brain_extraction_dwi.py
 # probabilistic_tracking_odfs.py
 # reconst_csa_parallel.py
 # reconst_csa.py
@@ -9,7 +9,7 @@ brain_extraction_dwi.py
 # reconst_dti.py
 # reconst_gqi.py
 # reslice_datasets.py
-# segment_quickbundles.py
+segment_quickbundles.py
 # snr_estimation_in_the_corpus_callosum.py
 # streamline_formats.py
 # tracking_eudx_odf.py
