@@ -84,6 +84,17 @@ Fiber tracking
 - :ref:`example_tracking_eudx_odf`
 - :ref:`example_probabilistic_tracking_odfs`
 
+-------------------
+Streamline analysis
+-------------------
+
+- lengths
+- curvature
+- streamline distances
+- resampling
+- roi intersections
+- connectivity
+
 ------------
 Segmentation
 ------------
