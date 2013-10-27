@@ -4,8 +4,6 @@
 Examples
 ========
 
-:ref:`example_segment_quickbundles`
-
 .. toctree::
    :maxdepth: 1
 
@@ -18,14 +16,31 @@ Quick Start
 
 
 
-----------------
+-------------
+Preprocessing
+-------------
+
+Gradients
+~~~~~~~~~
+
+Spheres
+~~~~~~~
+
 Brain Extraction
-----------------
+~~~~~~~~~~~~~~~~
 
-.. toctree::
-   :maxdepth: 1
+- :ref:`example_brain_extraction_dwi`
 
-   examples_built/brain_extraction_dwi
+SNR estimation
+~~~~~~~~~~~~~~
+
+- :ref:`example_snr_in_cc`
+
+Reslice
+~~~~~~~
+
+- :ref:`example_reslice_datasets`
+
 
 --------------
 Reconstruction
@@ -34,78 +49,70 @@ Reconstruction
 Constrained Spherical Deconvolution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. toctree::
-   :maxdepth: 1   
+- :ref:`example_reconst_csd`
 
-   examples_built/reconst_csd
 
-.. toctree::
-   :maxdepth: 1   
+Diffusion Tensor Imaging
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   examples_built/reconst_csa   
-   examples_built/reconst_dsi
-   examples_built/reconst_dsi_metrics
-   examples_built/reconst_dti
-   examples_built/reconst_gqi
+- :ref:`example_reconst_dti`
 
--------
-Reslice
--------
 
-.. toctree::
-   :maxdepth: 1
+Q-Ball Constant Solid Angle
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   examples_built/reslice_datasets
+- :ref:`example_reconst_csa`
 
-------------
-Parallelism
-------------
 
-.. toctree::
-   :maxdepth: 1
+Diffusion Spectrum Imaging
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   examples_built/reconst_csa_parallel   
-   examples_built/reconst_csd_parallel
-   
+- :ref:`example_reconst_dsi`
+- :ref:`example_reconst_dsi_metrics`
+
+
+Generalized Q-Sampling Imaging
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- :ref:`example_reconst_gqi`
+
 --------------
 Fiber tracking
 --------------
 
-.. toctree::
-   :maxdepth: 1
+- :ref:`example_tracking_eudx_tensor`
+- :ref:`example_tracking_eudx_odf`
+- :ref:`example_probabilistic_tracking_odfs`
+
+------------
+Segmentation
+------------
+
+Streamline Clustering
+~~~~~~~~~~~~~~~~~~~~~
+
+- :ref:`example_segment_quickbundles`
+
+Brain Segmentation
+~~~~~~~~~~~~~~~~~~
+- :ref:`example_brain_extraction_dwi`
+
+
+Simulations
+~~~~~~~~~~~
+
+---------------
+Multiprocessing
+---------------
+
+- :ref:`example_reconst_csd_parallel`
+- :ref:`example_reconst_csa_parallel`
    
-   examples_built/tracking_eudx_tensor
-   examples_built/tracking_eudx_odf   
-   examples_built/probabilistic_tracking_odfs
-
------------------------
-Streamline Segmentation
------------------------
-
-.. toctree::
-   :maxdepth: 1   
-
-   examples_built/segment_quickbundles
-   :ref:`example_segment_quickbundles`
-
---------------
-SNR estimation
---------------
-
-.. toctree::
-   :maxdepth: 1
-
-   examples_built/snr_estimation_in_the_corpus_callosum
-   
-
 ------------
 File Formats
 ------------
 
-.. toctree::
-   :maxdepth: 1
-
-   examples_built/streamline_formats
+- :ref:`example_streamline_formats`
    
 
 .. In order to build the examples, you'll need (on Debian)

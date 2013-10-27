@@ -10,7 +10,7 @@
 # reconst_gqi.py
 # reslice_datasets.py
 segment_quickbundles.py
-# snr_estimation_in_the_corpus_callosum.py
+# snr_in_cc.py
 # streamline_formats.py
 # tracking_eudx_odf.py
 # tracking_eudx_tensor.py
