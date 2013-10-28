@@ -1,17 +1,16 @@
 import numpy as np
-from numpy.testing import (assert_equal,
-                           assert_almost_equal,
+from numpy.testing import (assert_equal,                           
                            run_module_suite)
 from dipy.data import get_data
 from nibabel import trackvis as tv
-from dipy.bundle.descriptors import (length_distribution,
+from dipy.bundle.descriptor import (length_distribution,
                                      avg_streamline,
                                      qb_centroids,
                                      winding_angles,
                                      midpoints,
                                      centers_of_mass,
                                      dragons_hits)
-from dipy.bundle.descriptors import show_streamlines
+from dipy.bundle.descriptor import show_streamlines
 from dipy.viz import fvtk
 
 
@@ -20,6 +19,7 @@ def fornix_streamlines():
     streams, hdr = tv.read(fname)
     streamlines = [i[0] for i in streams]
     return streamlines
+
 
 def test_descriptors_fornix():
 

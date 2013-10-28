@@ -1,11 +1,9 @@
 import numpy as np
-from nibabel import trackvis as tv
 from dipy.segment.quickbundles import QuickBundles
-from dipy.data import get_data
 from dipy.viz import fvtk
 from dipy.viz.colormap import line_colors
 from dipy.tracking.utils import length
-from dipy.tracking.metrics import (downsample, 
+from dipy.tracking.metrics import (downsample,
                                    winding,
                                    midpoint,
                                    center_of_mass)
@@ -80,14 +78,12 @@ def avg_streamline(streamlines, pts=18):
     """
     if not isinstance(streamlines, list):
         streamlines = [streamlines]
-    if pts is None:
-        return np.mean(streamlines, axis=0)
-    else:
-        streamlines = [downsample(s, pts) for s in streamlines]
-        return np.mean(streamlines, axis=0)
+    streamlines = [downsample(s, pts) for s in streamlines]
+
+    return np.mean(streamlines, axis=0)
 
 
-def qb_centroids(streamlines, thr=10, pts=18):
+def qb_centroids(streamlines, thr, pts=18):
     """ QuickBundles centroids
 
     See also
@@ -168,5 +164,27 @@ def dragons_hits(streamlines, ref_streamline):
     return np.concatenate(xyz), np.concatenate(angles)
 
 
+def flip_to_source(streamlines, source=np.array([0, 0, 0])):
+    """ Flip streamlines so that their first point is close to source point
 
+    Parameters
+    ----------
+    streamlines : list
+        List of ndarrays (N, 3)
 
+    source : array
+        Point, shape (3,)
+
+    Returns
+    -------
+    flipped_streamlines : list
+        List of ndarrays (N, 3)
+    """
+
+    T2 = []
+    for t in streamlines:
+        if np.sum((t[0] - source) ** 2) > np.sum((t[-1] - source) ** 2):
+            T2.append(t[::-1])
+        else:
+            T2.append(t)
+    return T2
