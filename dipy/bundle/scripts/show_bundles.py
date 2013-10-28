@@ -30,7 +30,7 @@ def show_all_bundles(fnames):
 
 
 home = expanduser("~")
-dname = join(home, 'Data', 'MPI_elef', 'bundles2')
+dname = join(home, 'Data', 'MPI_elef', 'bundles_new')
 
 from glob import glob
 fnames = glob(join(dname, "*.trk" ))

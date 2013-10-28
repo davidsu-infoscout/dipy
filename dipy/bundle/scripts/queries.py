@@ -15,7 +15,7 @@ dname_subjs = environ['SUBJECTS_DIR']
 fwmparc_ants_nii = join(dname_subjs, subjid, 'mri', 'wmparc_ants_S0.nii.gz')
 sl_fname = join(dname, 'csd_streamlines.trk')
 
-bundles_base_name = join(dname, 'bundles.trk')
+bundles_base_name = join(dname, 'bundles_new.trk')
 cmd_tq = "tract_querier -t " + sl_fname + " -a " + fwmparc_ants_nii + " -q freesurfer_queries.qry -o " + bundles_base_name
 print(cmd_tq)
 pipe(cmd_tq)
