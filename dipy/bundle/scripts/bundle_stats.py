@@ -1,7 +1,7 @@
 from os.path import expanduser, join
 from nibabel import trackvis as tv
 from glob import glob
-from dipy.bundle.descriptor import avg_streamline, flip_to_source
+from dipy.bundle.descriptor import avg_streamline, flip_to_source, qb_centroids
 from dipy.viz import fvtk
 from dipy.viz.colormap import line_colors
 
@@ -42,7 +42,9 @@ def show_streamlines(streamlines, avg_streamlines=None, mpoints=None, cpoints=No
 
 def bundle_descriptors(bundle):
     avg = avg_streamline(bundle)
-    return avg
+    qbc = qb_centroids(bundle, thr=100, pts=18)
+    
+    return (avg, qbc)
 
 
 home = expanduser('~')
@@ -52,14 +54,16 @@ fbun = glob(join(dname, '*_cc_*.trk'))
 nbun = bundles_names(fbun, 'bundles_new.trk')
 
 avgs = []
+qbcs = []
 bundles = []
-for fname in fbun[:1]:
+for fname in fbun:#[:1]:
     print(fname)
     bundle = read_streamlines(fname)
     bundle = flip_to_source(bundle)
     bundles += bundle
-    avgs.append(bundle_descriptors(bundle))
+    avgs.append(bundle_descriptors(bundle)[0])
+    qbcs.append(bundle_descriptors(bundle)[1])
 
-show_streamlines(bundles, avgs)
-
+#show_streamlines(bundles, avgs)
+show_streamlines(bundles,qbcs)
 

@@ -57,15 +57,15 @@ def test_descriptors_fornix():
 
     assert_equal(len(hpoints) > len(avg), True)
 
-    # ren = show_streamlines(centroids, mpoints)
+    ren = show_streamlines(centroids, mpoints)
 
-    # fvtk.add(ren, fvtk.point(hpoints, fvtk.colors.red))
+    fvtk.add(ren, fvtk.point(hpoints, fvtk.colors.red))
 
-    # fvtk.add(ren, fvtk.line(avg, fvtk.colors.tomato))
+    fvtk.add(ren, fvtk.line(avg, fvtk.colors.tomato))
 
-    # fvtk.add(ren, fvtk.point(avg, fvtk.colors.yellow))
+    fvtk.add(ren, fvtk.point(avg, fvtk.colors.yellow))
 
-    # fvtk.show(ren)
+    fvtk.show(ren)
 
 
 def simulated_bundles():
@@ -106,7 +106,7 @@ def test_descriptors_sim_bundles():
 
     helix, parallel, spider, centerdiv = sbundles
 
-    #show_streamlines(sbundles[3])
+    show_streamlines(sbundles[3])
 
 
 if __name__ == '__main__':
