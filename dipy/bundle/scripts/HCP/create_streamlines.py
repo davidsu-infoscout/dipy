@@ -24,9 +24,13 @@ affine = img.get_affine()
 fmask = join(dname, 'dwi_mask_1x1x1.nii.gz')
 mask = nib.load(fmask).get_data()
 
-bvals, bvecs = read_bvals_bvecs(fbvals, fbvecs)
+ffa = join(dname, 'dwi_mask_1x1x1.nii.gz')
+fa = nib.load(ffa).get_data()
 
-from dipy.core.gradients import gradient_table
+fbvals = join(dname, 'bvals')
+fbvecs = join(dname, 'bvecs')
+
+bvals, bvecs = read_bvals_bvecs(fbvals, fbvecs)
 
 gtab = gradient_table(bvals, bvecs, b0_threshold=10)
 
@@ -50,7 +54,7 @@ peaks = peaks_from_model(model=shore_model,
                          normalize_peaks=False,
                          sh_order=8,
                          npeaks=5,
-                         parallel=True,
+                         parallel=False,
                          nbr_process=6)
 
 print('>>> Save peak indices...')
@@ -65,7 +69,7 @@ print('>>> Start tracking...')
 
 from dipy.tracking.eudx import EuDX
 
-eu = EuDX(FA,
+eu = EuDX(fa,
           peaks.peak_indices[..., 0],
           seeds=5*10**6,
           odf_vertices=sphere.vertices,
