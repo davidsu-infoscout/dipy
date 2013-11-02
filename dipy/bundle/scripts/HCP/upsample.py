@@ -6,6 +6,7 @@ from dipy.viz import fvtk
 from dipy.reconst.dti import TensorModel, fractional_anisotropy
 from dipy.io.gradients import read_bvals_bvecs
 from dipy.io.pickles import save_pickle
+from subjects import *
 
 
 def record_slice(fname, data, k, show=False):
@@ -14,11 +15,7 @@ def record_slice(fname, data, k, show=False):
     if show: fvtk.show(ren)
     fvtk.record(ren, out_path=fname, size=(600, 600))
 
-id = 0
-base_dirs = ['100307', '111312', '194140', '865363', '889579']
-home = expanduser("~")
 
-dname = join(home, 'Data', 'HCP', 'Q1', base_dirs[id])
 fname = join(dname, 'data.nii.gz')
 fbvals = join(dname, 'bvals')
 fbvecs = join(dname, 'bvecs')

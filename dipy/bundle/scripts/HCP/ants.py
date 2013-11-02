@@ -2,11 +2,8 @@ import nibabel as nib
 from os import environ
 from os.path import expanduser, join, dirname, realpath
 from dipy.external.fsl import pipe
+from subjects import *
 
-id = 0
-base_dirs = ['100307', '111312', '194140', '865363', '889579']
-home = expanduser("~")
-dname = join(home, 'Data', 'HCP', 'Q1', base_dirs[id])
 
 print('>>> Warp T1 to S0 using ANTS...')
 

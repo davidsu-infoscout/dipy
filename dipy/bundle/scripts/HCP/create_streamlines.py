@@ -7,12 +7,8 @@ from dipy.viz import fvtk
 from dipy.core.gradients import gradient_table
 from dipy.io.gradients import read_bvals_bvecs
 from dipy.reconst.shore import ShoreModel
+from subjects import *
 
-
-id = 0
-base_dirs = ['100307', '111312', '194140', '865363', '889579']
-home = expanduser("~")
-dname = join(home, 'Data', 'HCP', 'Q1', base_dirs[id])
 
 print('>>> Loading data...')
 
@@ -47,7 +43,7 @@ peaks = peaks_from_model(model=shore_model,
                          data=data,
                          mask=mask,
                          sphere=sphere,
-                         relative_peak_threshold=0.5,
+                         relative_peak_threshold=0.3,
                          min_separation_angle=25,
                          return_odf=False,
                          return_sh=True,
