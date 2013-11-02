@@ -57,7 +57,14 @@ mask2, affine2 = resample(mask, affine,
                           new_zooms=(1., 1., 1.))
 
 mask2[mask2 > 0] = 1
-data2[mask2 == 0] = np.zeros(data2.shape[-1])
+
+#As these datasets are huge we will use ndindex to apply the mask
+#rather than data2[mask2==0] = np.zeros(data2.shape[-1])
+from dipy.core.ndindex import ndindex
+
+for index in ndindex(data2.shape[:3]):
+    if mask2[index] == 0:
+        data2[index] = np.zeros(data2.shape[-1])
 
 del data, affine, zooms
 

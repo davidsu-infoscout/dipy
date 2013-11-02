@@ -20,8 +20,15 @@ affine = img.get_affine()
 fmask = join(dname, 'dwi_mask_1x1x1.nii.gz')
 mask = nib.load(fmask).get_data()
 
-ffa = join(dname, 'dwi_mask_1x1x1.nii.gz')
+ffa = join(dname, 'dwi_fa_1x1x1.nii.gz')
 fa = nib.load(ffa).get_data()
+
+x, y, z = mask.shape
+w = 5
+mask[x/2 - w: x/2 + w,
+     y/2 - w: y/2 + w,
+     z/2 - w: z/2 + w] = 2
+mask[mask < 2] = 0
 
 fbvals = join(dname, 'bvals')
 fbvecs = join(dname, 'bvecs')
@@ -37,6 +44,8 @@ from dipy.data import get_sphere
 sphere = get_sphere('symmetric724')
 
 print('>>> Find peaks...')
+from time import time
+t0 = time()
 
 from dipy.reconst.odf import peaks_from_model
 peaks = peaks_from_model(model=shore_model,
@@ -52,6 +61,10 @@ peaks = peaks_from_model(model=shore_model,
                          npeaks=5,
                          parallel=False,
                          nbr_process=6)
+
+t1 = time()
+np.savetxt('shore_peaks_time.txt', (t1-t2,))
+del data
 
 print('>>> Save peak indices...')
 
