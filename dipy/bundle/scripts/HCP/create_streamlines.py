@@ -12,7 +12,7 @@ from subjects import *
 
 print('>>> Loading data...')
 
-fname = join(dname, 'dwi_1x1x1.nii.gz')
+fname = join(dname, 'dwi_1x1x1.nii')
 img = nib.load(fname)
 data = img.get_data()
 affine = img.get_affine()
@@ -23,12 +23,15 @@ mask = nib.load(fmask).get_data()
 ffa = join(dname, 'dwi_fa_1x1x1.nii.gz')
 fa = nib.load(ffa).get_data()
 
-x, y, z = mask.shape
-w = 5
-mask[x/2 - w: x/2 + w,
-     y/2 - w: y/2 + w,
-     z/2 - w: z/2 + w] = 2
-mask[mask < 2] = 0
+# use small mask
+# x, y, z = mask.shape
+# w = 5
+# mask[x/2 - w: x/2 + w,
+#      y/2 - w: y/2 + w,
+#      z/2 - w: z/2 + w] = 2
+# mask[mask < 2] = 0
+# mask[mask == 2] = 1
+# fa[mask==0] = 0
 
 fbvals = join(dname, 'bvals')
 fbvecs = join(dname, 'bvecs')
@@ -63,7 +66,7 @@ peaks = peaks_from_model(model=shore_model,
                          nbr_process=6)
 
 t1 = time()
-np.savetxt('shore_peaks_time.txt', (t1-t2,))
+np.savetxt(join(dname,'shore_peaks_time.txt'), (t1-t0,))
 del data
 
 print('>>> Save peak indices...')

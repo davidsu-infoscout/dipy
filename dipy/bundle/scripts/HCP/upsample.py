@@ -74,7 +74,8 @@ print(nib.aff2axcodes(affine2))
 
 print('>>> Save resampled data, masks and S0...')
 
-fname2 = join(dname, 'dwi_1x1x1.nii.gz')
+# Save as nii (not nii.gz) to reduce saving and loading time
+fname2 = join(dname, 'dwi_1x1x1.nii')
 nib.save(nib.Nifti1Image(data2, affine2), fname2)
 
 fname2_mask = join(dname, 'dwi_mask_1x1x1.nii.gz')
