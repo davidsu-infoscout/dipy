@@ -6,93 +6,99 @@ from dipy.viz import fvtk
 from dipy.reconst.dti import TensorModel, fractional_anisotropy
 from dipy.io.gradients import read_bvals_bvecs
 from dipy.io.pickles import save_pickle
-from subjects import *
+import sys
+#from subjects import *
 
 
 def record_slice(fname, data, k, show=False):
     ren = fvtk.ren()
     fvtk.add(ren, fvtk.slicer(data, plane_k=[k]))
-    if show: fvtk.show(ren)
+    if show:
+        fvtk.show(ren)
     fvtk.record(ren, out_path=fname, size=(600, 600))
 
 
-fname = join(dname, 'data.nii.gz')
-fbvals = join(dname, 'bvals')
-fbvecs = join(dname, 'bvecs')
-fmask = join(dname, 'nodif_brain_mask.nii.gz')
+if __name__ == '__main__':
 
-print('>>> Loading Raw data, b-values and masking background...')
-print(fname)
+    dname = sys.argv[1]
 
-img = nib.load(fname)
-data = img.get_data()
+    fname = join(dname, 'data.nii.gz')
+    fbvals = join(dname, 'bvals')
+    fbvecs = join(dname, 'bvecs')
+    fmask = join(dname, 'nodif_brain_mask.nii.gz')
 
-affine = img.get_affine()
-zooms = img.get_header().get_zooms()[:3]
+    print('>>> Loading Raw data, b-values and masking background...')
+    print(fname)
 
-bvals, bvecs = read_bvals_bvecs(fbvals, fbvecs)
+    img = nib.load(fname)
+    data = img.get_data()
 
-from dipy.core.gradients import gradient_table
+    affine = img.get_affine()
+    zooms = img.get_header().get_zooms()[:3]
 
-gtab = gradient_table(bvals, bvecs, b0_threshold=10)
+    bvals, bvecs = read_bvals_bvecs(fbvals, fbvecs)
 
-b0_index = np.where(gtab.b0s_mask==True)[0]
+    from dipy.core.gradients import gradient_table
 
-mask = nib.load(fmask).get_data()
+    gtab = gradient_table(bvals, bvecs, b0_threshold=10)
 
-print(data.shape)
-print(affine)
-print(nib.aff2axcodes(affine))
+    b0_index = np.where(gtab.b0s_mask == True)[0]
 
-print('>>> Resample data to 1x1x1 mm^3...')
+    mask = nib.load(fmask).get_data()
 
-from dipy.align.aniso2iso import resample
+    print(data.shape)
+    print(affine)
+    print(nib.aff2axcodes(affine))
 
-data2, affine2 = resample(data, affine,
-                          zooms=zooms,
-                          new_zooms=(1., 1., 1.))
+    print('>>> Resample data to 1x1x1 mm^3...')
 
-mask2, affine2 = resample(mask, affine,
-                          zooms=zooms,
-                          new_zooms=(1., 1., 1.))
+    from dipy.align.aniso2iso import resample
 
-mask2[mask2 > 0] = 1
+    data2, affine2 = resample(data, affine,
+                              zooms=zooms,
+                              new_zooms=(1., 1., 1.))
 
-#As these datasets are huge we will use ndindex to apply the mask
-#rather than data2[mask2==0] = np.zeros(data2.shape[-1])
-from dipy.core.ndindex import ndindex
+    mask2, affine2 = resample(mask, affine,
+                              zooms=zooms,
+                              new_zooms=(1., 1., 1.))
 
-for index in ndindex(data2.shape[:3]):
-    if mask2[index] == 0:
-        data2[index] = np.zeros(data2.shape[-1])
+    mask2[mask2 > 0] = 1
 
-del data, affine, zooms
+    # As these datasets are huge we will use ndindex to apply the mask
+    # rather than data2[mask2==0] = np.zeros(data2.shape[-1])
+    from dipy.core.ndindex import ndindex
 
-print(data2.shape)
-print(affine2)
-print(nib.aff2axcodes(affine2))
+    for index in ndindex(data2.shape[:3]):
+        if mask2[index] == 0:
+            data2[index] = np.zeros(data2.shape[-1])
 
-print('>>> Save resampled data, masks and S0...')
+    del data, affine, zooms
 
-# Save as nii (not nii.gz) to reduce saving and loading time
-fname2 = join(dname, 'dwi_1x1x1.nii')
-nib.save(nib.Nifti1Image(data2, affine2), fname2)
+    print(data2.shape)
+    print(affine2)
+    print(nib.aff2axcodes(affine2))
 
-fname2_mask = join(dname, 'dwi_mask_1x1x1.nii.gz')
-nib.save(nib.Nifti1Image(mask2.astype(np.uint8), affine2), fname2_mask)
+    print('>>> Save resampled data, masks and S0...')
 
-fname2_S0 = join(dname, 'dwi_S0_1x1x1.nii.gz')
+    # Save as nii (not nii.gz) to reduce saving and loading time
+    fname2 = join(dname, 'dwi_1x1x1.nii')
+    nib.save(nib.Nifti1Image(data2, affine2), fname2)
 
-S0s = data2[..., b0_index]
-S0 = np.mean(S0s, axis=-1)
+    fname2_mask = join(dname, 'dwi_mask_1x1x1.nii.gz')
+    nib.save(nib.Nifti1Image(mask2.astype(np.uint8), affine2), fname2_mask)
 
-nib.save(nib.Nifti1Image(S0, affine2), fname2_S0)
+    fname2_S0 = join(dname, 'dwi_S0_1x1x1.nii.gz')
 
-print('>>> Calculate FA...')
+    S0s = data2[..., b0_index]
+    S0 = np.mean(S0s, axis=-1)
 
-ten = TensorModel(gtab)
-tenfit = ten.fit(data2, mask2)
-fname2_fa = join(dname, 'dwi_fa_1x1x1.nii.gz')
-nib.save(nib.Nifti1Image(tenfit.fa, affine2), fname2_fa)
+    nib.save(nib.Nifti1Image(S0, affine2), fname2_S0)
 
-del data2, mask2
+    print('>>> Calculate FA...')
+
+    ten = TensorModel(gtab)
+    tenfit = ten.fit(data2, mask2)
+    fname2_fa = join(dname, 'dwi_fa_1x1x1.nii.gz')
+    nib.save(nib.Nifti1Image(tenfit.fa, affine2), fname2_fa)
+
+    del data2, mask2
