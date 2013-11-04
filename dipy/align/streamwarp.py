@@ -73,7 +73,7 @@ def matrix44(t, dtype=np.double):
     rads = np.deg2rad(t[3:6])
 
     R = rotation_vec2mat(rads)
-    
+
     if size == 6:
         T[0:3, 0:3] = R
     elif size == 7:
@@ -104,8 +104,8 @@ def transform_streamlines(streamlines, mat):
     return [apply_affine(mat, s) for s in streamlines]
 
 
-def mdf_optimization(t, static, moving, method=1):
-    """ MDF distance optimization function
+def mdf_optimization_sum(t, static, moving):
+    """ MDF distance optimization function (SUM)
 
     We minimize the distance between moving streamlines as they align
     with the static streamlines.
@@ -121,10 +121,9 @@ def mdf_optimization(t, static, moving, method=1):
         If size >= 12, t is interpreted as translation + rotation +
         scaling + pre-rotation.
 
-    Parameters
-    ----------
     static : list
         Static streamlines
+
     moving : list
         Moving streamlines. These will be transform to align with
         the static streamlines
@@ -138,11 +137,43 @@ def mdf_optimization(t, static, moving, method=1):
     aff = matrix44(t)
     moving = transform_streamlines(moving, aff)
     d01 = bundles_distances_mdf(static, moving)
-    if method == 1:
-        print(np.sum(d01))
-        return np.sum(d01)
-    if method == 0:
-        return np.sum(np.min(d01, axis=0)) + np.sum(np.min(d01, axis=1))
+    return np.sum(d01)
+
+
+def mdf_optimization_min(t, static, moving):
+    """ MDF distance optimization function (SUM)
+
+    We minimize the distance between moving streamlines as they align
+    with the static streamlines.
+
+    Parameters
+    -----------
+    t : ndarray
+        t is a vector of of affine transformation parameters with 
+        size at least 6. If size < 6, returns an error.
+        If size == 6, t is interpreted as translation + rotation.
+        If size == 7, t is interpreted as translation + rotation +
+        isotropic scaling. If 7 < size < 12, error.
+        If size >= 12, t is interpreted as translation + rotation +
+        scaling + pre-rotation.
+
+    static : list
+        Static streamlines
+
+    moving : list
+        Moving streamlines. These will be transform to align with
+        the static streamlines
+
+    Returns
+    -------
+    cost: float
+
+    """
+
+    aff = matrix44(t)
+    moving = transform_streamlines(moving, aff)
+    d01 = bundles_distances_mdf(static, moving)
+    return np.sum(np.min(d01, axis=0)) + np.sum(np.min(d01, axis=1))
 
 
 def center_streamlines(streamlines):
@@ -157,36 +188,45 @@ def center_streamlines(streamlines):
     -------
     new_streamlines : list
         List of 2D ndarrays of shape[-1]==3
+    inv_shift : ndarray
+        Translation in x,y,z to go back in the initial position
 
     """
     center = np.mean(np.concatenate(streamlines, axis=0), axis=0)
-    return [s - center for s in streamlines]
+    return [s - center for s in streamlines], center
 
 
-class AffineRegistration(object):
+class LinearRegistration(object):
 
-    def __init__(self, cost_func, cost_type=0):
+    def __init__(self, cost_func, reg_type='rigid', xtol=10 ** (-6),
+                 ftol=10 ** (-6), maxiter=10 ** 6):
+
         self.cost_func = cost_func
         self.xopt = None
-        self.cost_type = cost_type        
+        self.xtol = xtol
+        self.ftol = ftol
+        self.maxiter = maxiter
+
+        if reg_type == 'rigid':
+            self.initial = np.zeros(6).tolist()
+        if reg_type == 'rigid+scale':
+            self.initial = np.zeros(7).tolist()
 
     def optimize(self):
-        self.xopt = fmin_powell(self.cost_func, 
-                               [0, 0, 0, 0, 0, 0], 
-                               (self.static, self.moving, self.cost_type), 
-                               xtol=10 ** (-6), 
-                               ftol=10 ** (-6), 
-                               maxiter=10 ** 6)
+        self.xopt = fmin_powell(self.cost_func,
+                                self.initial,
+                                (self.static, self.moving),
+                                xtol = self.xtol,
+                                ftol = self.ftol,
+                                maxiter = self.maxiter)                                
 
         return self.xopt
 
-    def apply(self, static, moving):        
+    def transform(self, static, moving):
         self.static = static
         self.moving = moving
         xopt = self.optimize()
         mat = matrix44(xopt)
+        self.mat = mat
         self.moved = transform_streamlines(self.moving, mat)
         return self.moved
-
-
-
