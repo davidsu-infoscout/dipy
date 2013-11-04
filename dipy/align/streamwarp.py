@@ -1,7 +1,7 @@
 import numpy as np
 from nibabel.affines import apply_affine
 from dipy.tracking.distances import bundles_distances_mdf
-from scipy.optimize import fmin as fmin_powell
+from scipy.optimize import fmin_powell
 
 
 def rotation_vec2mat(r):
@@ -73,7 +73,7 @@ def matrix44(t, dtype=np.double):
     rads = np.deg2rad(t[3:6])
 
     R = rotation_vec2mat(rads)
-    #R = rotation_vec2mat(t[3:6])
+    
     if size == 6:
         T[0:3, 0:3] = R
     elif size == 7:
@@ -139,30 +139,54 @@ def mdf_optimization(t, static, moving, method=1):
     moving = transform_streamlines(moving, aff)
     d01 = bundles_distances_mdf(static, moving)
     if method == 1:
+        print(np.sum(d01))
         return np.sum(d01)
     if method == 0:
         return np.sum(np.min(d01, axis=0)) + np.sum(np.min(d01, axis=1))
 
 
-class StreamWarp(object):
+def center_streamlines(streamlines):
+    """ Move streamlines to the origin 
 
-    def __init__(self, static, moving, cost_func):
-        self.static = static
-        self.moving = moving
+    Parameters
+    ----------
+    streamlines : list
+        List of 2D ndarrays of shape[-1]==3
+            
+    Returns
+    -------
+    new_streamlines : list
+        List of 2D ndarrays of shape[-1]==3
+
+    """
+    center = np.mean(np.concatenate(streamlines, axis=0), axis=0)
+    return [s - center for s in streamlines]
+
+
+class AffineRegistration(object):
+
+    def __init__(self, cost_func, cost_type=0):
         self.cost_func = cost_func
         self.xopt = None
+        self.cost_type = cost_type        
 
     def optimize(self):
         self.xopt = fmin_powell(self.cost_func, 
                                [0, 0, 0, 0, 0, 0], 
-                               (self.static, self.moving, 1), 
+                               (self.static, self.moving, self.cost_type), 
                                xtol=10 ** (-6), 
                                ftol=10 ** (-6), 
                                maxiter=10 ** 6)
 
         return self.xopt
 
-    def warp(self):
+    def apply(self, static, moving):        
+        self.static = static
+        self.moving = moving
         xopt = self.optimize()
         mat = matrix44(xopt)
-        return transform_streamlines(self.moving, mat)
+        self.moved = transform_streamlines(self.moving, mat)
+        return self.moved
+
+
+

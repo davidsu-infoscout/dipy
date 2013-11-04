@@ -1,9 +1,10 @@
 import numpy as np
 from numpy.testing import (run_module_suite, assert_equal)
-from dipy.align.streamwarp import (StreamWarp, 
+from dipy.align.streamwarp import (AffineRegistration, 
                                    transform_streamlines, 
                                    matrix44,
-                                   mdf_optimization)
+                                   mdf_optimization,
+                                   center_streamlines)
 from dipy.tracking.metrics import downsample
 from dipy.data import get_data
 from nibabel import trackvis as tv
@@ -33,8 +34,9 @@ def fornix_streamlines(no_pts=12):
 def viz(bundle, bundle2):
     from dipy.viz import fvtk
     
-    ren = fvtk.ren()    
-    fvtk.add(ren, fvtk.line(bundle, fvtk.colors.red))
+    ren = fvtk.ren()
+    fvtk.add(ren, fvtk.axes((10, 10, 10))) 
+    fvtk.add(ren, fvtk.line(bundle, fvtk.colors.red, linewidth=3))
     fvtk.add(ren, fvtk.line(bundle2, fvtk.colors.cyan))
     fvtk.show(ren)
 
@@ -42,17 +44,18 @@ def viz(bundle, bundle2):
 def test_simulated_bundles():
 
     bundle = fornix_streamlines() #simulated_bundle()
-    mat = matrix44([0, 10, 0, 45, 5, 0])
+    bundle = center_streamlines(bundle)
+    mat = matrix44([20, 0, 10, 0, 40, 0])
     bundle2 = transform_streamlines(bundle, mat)
+    #bundle2 = center_streamlines(bundle2)
 
     viz(bundle, bundle2)
 
-    sw = StreamWarp(bundle, bundle2, mdf_optimization)
-    new_bundle2 = sw.warp()
+    sw = AffineRegistration(mdf_optimization)
+    new_bundle2 = sw.apply(bundle, bundle2)
     print(sw.xopt)
 
     viz(bundle, new_bundle2)
-
     1/0
 
 test_simulated_bundles()

@@ -3,14 +3,14 @@ from numpy.testing import (assert_equal,
                            run_module_suite)
 from dipy.data import get_data
 from nibabel import trackvis as tv
-from dipy.bundle.descriptor import (length_distribution,
+from dipy.bundle.descriptors import (length_distribution,
                                      avg_streamline,
                                      qb_centroids,
                                      winding_angles,
                                      midpoints,
                                      centers_of_mass,
                                      dragons_hits)
-from dipy.bundle.descriptor import show_streamlines
+from dipy.bundle.descriptors import show_streamlines
 from dipy.viz import fvtk
 
 
