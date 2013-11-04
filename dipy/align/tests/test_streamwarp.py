@@ -1,5 +1,7 @@
 import numpy as np
-from numpy.testing import (run_module_suite, assert_array_almost_equal)
+from numpy.testing import (run_module_suite,
+                           assert_equal,                               
+                           assert_array_almost_equal)
 from dipy.align.streamwarp import (LinearRegistration, 
                                    transform_streamlines, 
                                    matrix44,
@@ -8,6 +10,7 @@ from dipy.align.streamwarp import (LinearRegistration,
                                    center_streamlines)
 from dipy.tracking.metrics import downsample
 from dipy.data import get_data
+from dipy.bundle.descriptors import midpoints
 from nibabel import trackvis as tv
 
 
@@ -42,6 +45,15 @@ def viz(bundle, bundle2):
     fvtk.add(ren, fvtk.line(bundle2, fvtk.colors.cyan))
     fvtk.show(ren)
 
+
+def viz_vol(vol):
+    from dipy.viz import fvtk
+    
+    ren = fvtk.ren()
+    fvtk.add(ren, fvtk.volume(vol)) 
+    fvtk.show(ren)
+
+
 def evaluate_convergence(bundle, new_bundle2):
     pts_static = np.concatenate(bundle, axis=0)
     pts_moved = np.concatenate(new_bundle2, axis=0)
@@ -69,22 +81,23 @@ def test_rigid():
         
     
 def test_rigid_real_bundles():
-    
+
     bundle_initial = fornix_streamlines()[:20]
     bundle, shift = center_streamlines(bundle_initial)
     mat = matrix44([0, 0, 20, 45, 0, 0])
     bundle2 = transform_streamlines(bundle, mat)
     
+
     lin = LinearRegistration(mdf_optimization_sum, 'rigid')
     new_bundle2 = lin.transform(bundle, bundle2)
 
     evaluate_convergence(bundle, new_bundle2)
-    #viz(bundle, bundle2)
-    #viz(bundle, new_bundle2)
+    # viz(bundle, bundle2)
+    # viz(bundle, new_bundle2)
 
     cx, cy, cz = shift
     new_bundle2_initial = transform_streamlines(new_bundle2, matrix44([cx, cy, cz, 0, 0, 0]))
-    #viz(bundle_initial, new_bundle2_initial)
+    # viz(bundle_initial, new_bundle2_initial)
     
     evaluate_convergence(bundle_initial, new_bundle2_initial)
 
@@ -94,15 +107,42 @@ def test_rigid_partial():
     static = fornix_streamlines()[:20]
     moving = fornix_streamlines()[20:40]
     static_center, shift = center_streamlines(static)
+    
+    mat = matrix44([0, 0, 0, 0, 40, 0])
+    moving = transform_streamlines(moving, mat)
+
     lin = LinearRegistration(mdf_optimization_min, 'rigid')
 
-    viz(static_center, moving)
+    #viz(static_center, moving)
     moving_center = lin.transform(static_center, moving)
 
-    viz(static_center, moving_center)
+    #viz(static_center, moving_center)
+    from dipy.tracking.metrics import downsample
+    static_center = [downsample(s, 100) for s in static_center]
+    moving_center = [downsample(s, 100) for s in moving_center]
+    vol = np.zeros((100, 100, 100))
+    spts = np.concatenate(static_center, axis=0)
+    spts = np.round(spts).astype(np.int) + np.array([50, 50, 50])
 
+    mpts = np.concatenate(moving_center, axis=0)
+    mpts = np.round(mpts).astype(np.int) + np.array([50, 50, 50])
+  
+    for index in spts:
+        i, j, k = index
+        vol[i, j, k] = 1
+
+    vol2 = np.zeros((100, 100, 100))
+    for index in mpts:
+        i, j, k = index
+        vol2[i, j, k] = 1
+
+    overlap = np.sum(np.logical_and(vol,vol2))/float(np.sum(vol2))
+    print(overlap)
+
+    #viz_vol(np.logical_and(vol,vol2))
+    assert_equal(overlap*100 > 40, True )
 
 # test_rigid()
 # test_rigid_real_bundles()
-# test_rigid_partial()
-# test_rigid_scale()
+vol = test_rigid_partial()
+
