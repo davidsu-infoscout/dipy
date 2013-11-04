@@ -162,7 +162,7 @@ class StreamWarp(object):
 
         return self.xopt
 
-    def warped(self):
+    def warp(self):
         xopt = self.optimize()
         mat = matrix44(xopt)
         return transform_streamlines(self.moving, mat)
