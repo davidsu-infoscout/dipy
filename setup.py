@@ -135,6 +135,7 @@ def main(**extra_args):
           packages     = ['dipy',
                           'dipy.tests',
                           'dipy.align',
+                          'dipy.align.tests',
                           'dipy.core',
                           'dipy.core.tests',
                           'dipy.tracking',
