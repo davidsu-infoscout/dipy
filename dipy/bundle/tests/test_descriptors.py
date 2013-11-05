@@ -68,8 +68,8 @@ def test_descriptors_fornix():
     fvtk.show(ren)
 
 
-def simulated_bundles():
-    t = np.linspace(-10, 10, 200)
+def simulated_bundles(no_pts=200):
+    t = np.linspace(-10, 10, no_pts)
     fibno = 150
 
     # helix
@@ -109,6 +109,48 @@ def test_descriptors_sim_bundles():
     show_streamlines(sbundles[3])
 
 
+def parametrize_arclength(streamline):
+    n_vertex = len(streamline)
+    disp = np.diff(streamline, axis=0)
+    L2 = np.sqrt(np.sum(disp ** 2, axis=1))
+
+    arc_length = np.sum(L2)
+    cum_len = np.cumsum(L2) / float(arc_length)
+    para = np.zeros(n_vertex)
+    para[1:] = cum_len
+    return para
+
+
+def cosine_series(streamline, para, k=10):
+    n_vertex = len(para)
+    para_even = [-para[::-1][:-1], para]
+    stream_even = [streamline[::-1][:-1], streamline]
+    # Y=zeros(2*n_vertex-1,k+1);
+    # para_even=repmat(para_even',1,k+1);
+    # pi_factors=repmat([0:k],2*n_vertex-1,1).*pi;
+    # Y=cos(para_even.*pi_factors).*sqrt(2);
+
+    # beta=pinv(Y'*Y)*Y'*tract_even';
+
+    # hat= Y*beta;
+
+    # wfs=hat(n_vertex:(n_vertex*2-1),:)';
+
+
+def test_cosine_series():
+
+    helix = simulated_bundles(10)[0]
+    streamline = helix[0]
+    para = parametrize_arclength(streamline)
+    print(para)
+    para = parametrize_arclength(streamline * np.array([[1.2, 1., 1.]]))
+    print(para)
+    
+
+    1/0
+
+
 if __name__ == '__main__':
     # run_module_suite()
-    test_descriptors_fornix()
+    # test_descriptors_fornix()
+    test_cosine_series()
