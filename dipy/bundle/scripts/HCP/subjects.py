@@ -7,7 +7,7 @@ home = expanduser("~")
 
 from dipy.external import pipe
 
-for id_ in range(1, 5):
+for id_ in range(0, 5):
 
     dname = join(home, 'Data', 'HCP', 'Q1', base_dirs[id_])
     print(dname)
