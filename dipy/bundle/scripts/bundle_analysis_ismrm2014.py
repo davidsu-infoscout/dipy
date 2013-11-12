@@ -6,13 +6,19 @@ import nibabel as nib
 from dipy.viz import fvtk
 from dipy.viz.colormap import line_colors
 from dipy.bundle.descriptors import (length_distribution,
-                                     qb_centroids)
+                                     qb_centroids,
+                                     flip_to_source,
+                                     avg_streamline,
+                                     winding_angles,
+                                     dragons_hits)
 from dipy.align.streamwarp import (LinearRegistration,
                                    transform_streamlines,
                                    matrix44,
                                    mdf_optimization_sum,
                                    mdf_optimization_min,
                                    center_streamlines)
+from dipy.tracking.metrics import downsample
+
 
 home = expanduser("~")
 hcpdname = join(home, 'Data', 'HCP', 'Q1')
@@ -81,6 +87,63 @@ def qb_bundles(bundles, thr, pts=18):
     return new_bundle
 
 
+def linear_reg(static, moving):
+    static_center, shift = center_streamlines(static)
+    lin = LinearRegistration(mdf_optimization_min, 'rigid')
+    moving_center = lin.transform(static_center, moving)
+    return static_center, moving_center, shift
+
+
+def viz_vol(vol):
+    ren = fvtk.ren()
+    fvtk.add(ren, fvtk.volume(vol))
+    fvtk.show(ren)
+
+
+def all_descriptors(bundles):
+    descr = {}
+    descr['lengths'] = []
+    descr['avg_streamline'] = []
+    descr['winding_angle'] = []
+    descr['dragons_hits'] = []
+    for bundle in bundles:
+        bundle = flip_to_source(bundle, bundle[0][0])
+        descr['lengths'].append(length_distribution(bundle))
+        avg = avg_streamline(bundle)
+        descr['avg_streamline'].append(avg)
+        descr['winding_angle'].append(winding_angles(bundle))
+        descr['dragons_hits'].append(dragons_hits(bundle, avg))
+    return descr
+
+
+def measure_overlap(static_center, moving_center, show=True, vol_size=(256, 256, 256)):
+    static_center = [downsample(s, 100) for s in static_center]
+    moving_center = [downsample(s, 100) for s in moving_center]
+    vol = np.zeros(vol_size)
+
+    ci, cj, ck = vol_size[0]/2 , vol_size[1]/2 , vol_size[2]/2
+
+    spts = np.concatenate(static_center, axis=0)
+    spts = np.round(spts).astype(np.int) + np.array([ci, cj, ck])
+
+    mpts = np.concatenate(moving_center, axis=0)
+    mpts = np.round(mpts).astype(np.int) + np.array([ci, cj, ck])
+
+    for index in spts:
+        i, j, k = index
+        vol[i, j, k] = 1
+
+    vol2 = np.zeros(vol_size)
+    for index in mpts:
+        i, j, k = index
+        vol2[i, j, k] = 1
+
+    vol_and = np.logical_and(vol,vol2)
+    overlap = np.sum(vol_and) / float(np.sum(vol2))
+    if show: viz_vol(vol_and)
+    return 100 * overlap
+
+
 colors = np.array([fvtk.colors.cyan_white,
                    fvtk.colors.violet_red,
                    fvtk.colors.turquoise_pale,
@@ -88,12 +151,21 @@ colors = np.array([fvtk.colors.cyan_white,
                    fvtk.colors.honeydew])
 print(colors)
 
-
 bundles, fnames = bring_bundle_from_all_subjs('cb.right')
 bundles = clean_bundles(bundles, 30)
+
+#descr = all_descriptors(bundles)
+
 cbundles = qb_bundles(bundles, thr=10)
 
-
-
-
 show_all_bundles(cbundles, colors=colors)
+
+for i in range(1, 5):
+
+    static = cbundles[0]
+    moving = cbundles[i]
+    static_center, moving_center, shift = linear_reg(static, moving)
+    overlap = measure_overlap(static_center, moving_center)
+    print('Overlap %.2f' % overlap)
+    rbundles = [static_center, moving_center]
+    show_all_bundles(rbundles, colors=colors)
