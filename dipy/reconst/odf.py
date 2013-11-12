@@ -428,7 +428,7 @@ def peaks_from_model(model, data, sphere, relative_peak_threshold,
 
     if return_sh:
         pam.shm_coeff = shm_coeff
-        pam.invB = invB
+        pam.invB = B.T
     else:
         pam.shm_coeff = None
         pam.invB = None
