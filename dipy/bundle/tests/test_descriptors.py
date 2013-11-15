@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.testing import (assert_equal,                           
+from numpy.testing import (assert_equal,
                            run_module_suite)
 from dipy.data import get_data
 from nibabel import trackvis as tv
@@ -44,7 +44,7 @@ def test_descriptors_fornix():
     winds = winding_angles(centroids)
 
     assert_equal(np.mean(winds) < 300 and np.mean(winds) > 100, True)
-    
+
     mpoints = midpoints(centroids)
 
     assert_equal(len(mpoints), 4)
@@ -80,16 +80,16 @@ def simulated_bundles(no_pts=200):
 
     # parallel waves
     bundle2 = []
-    for i in np.linspace(-5, 5, fibno):        
+    for i in np.linspace(-5, 5, fibno):
         pts = np.vstack((np.cos(t), t, i * np.ones(t.shape))).T
         bundle2.append(pts)
 
     # spider - diverging in the ends
     bundle3 = []
-    for i in np.linspace(-1, 1, fibno):        
+    for i in np.linspace(-1, 1, fibno):
         pts = np.vstack((i ** 3 * t / 2., t, np.cos(t))).T
         bundle3.append(pts)
-    
+
     # diverging in the middle
     bundle4 = []
     for i in np.linspace(-1, 1, fibno):
@@ -123,8 +123,16 @@ def parametrize_arclength(streamline):
 
 def cosine_series(streamline, para, k=10):
     n_vertex = len(para)
-    para_even = [-para[::-1][:-1], para]
-    stream_even = [streamline[::-1][:-1], streamline]
+    para_even = np.array([-para[::-1][::2], para])
+    print(para_even)
+    print(para_even.shape)
+    stream_even = np.array([streamline[::-1][::2], streamline])
+    print(stream_even)
+    Y = np.zeros((2*n_vertex-1, k+1))
+    para_even = np.tile(para_even.T, (1, k+1))
+    print(para_even.shape)
+    pi_factors = np.tile(np.arange(5), (2*n_vertex-1, 1)) * np.pi
+    print(pi_factors.shape)
     # Y=zeros(2*n_vertex-1,k+1);
     # para_even=repmat(para_even',1,k+1);
     # pi_factors=repmat([0:k],2*n_vertex-1,1).*pi;
@@ -140,12 +148,16 @@ def cosine_series(streamline, para, k=10):
 def test_cosine_series():
 
     helix = simulated_bundles(10)[0]
-    streamline = helix[0]
+    print(len(helix))
+    streamline = helix[0][:-2]
     para = parametrize_arclength(streamline)
+    print(para)
+    para = parametrize_arclength(streamline[::-1])
     print(para)
     para = parametrize_arclength(streamline * np.array([[1.2, 1., 1.]]))
     print(para)
-    
+
+    cosine_series(streamline, para, k=10)
 
     1/0
 
