@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.testing import (assert_equal,
+                           assert_array_almost_equal,
                            run_module_suite)
 from dipy.data import get_data
 from nibabel import trackvis as tv
@@ -122,45 +123,64 @@ def parametrize_arclength(streamline):
 
 
 def cosine_series(streamline, para, k=10):
+    """
+    http://brainimaging.waisman.wisc.edu/~chung/tracts/
+    """
     n_vertex = len(para)
-    para_even = np.array([-para[::-1][::2], para])
-    print(para_even)
-    print(para_even.shape)
-    stream_even = np.array([streamline[::-1][::2], streamline])
-    print(stream_even)
-    Y = np.zeros((2*n_vertex-1, k+1))
-    para_even = np.tile(para_even.T, (1, k+1))
-    print(para_even.shape)
-    pi_factors = np.tile(np.arange(5), (2*n_vertex-1, 1)) * np.pi
-    print(pi_factors.shape)
-    # Y=zeros(2*n_vertex-1,k+1);
-    # para_even=repmat(para_even',1,k+1);
-    # pi_factors=repmat([0:k],2*n_vertex-1,1).*pi;
-    # Y=cos(para_even.*pi_factors).*sqrt(2);
 
-    # beta=pinv(Y'*Y)*Y'*tract_even';
+    para_even = np.hstack((-para[::-1][:-1], para))
 
-    # hat= Y*beta;
+    stream_even = np.vstack((streamline[::-1][:-1], streamline))
 
-    # wfs=hat(n_vertex:(n_vertex*2-1),:)';
+    Y = np.zeros((2 * n_vertex - 1, k + 1))
+
+    para_even = np.tile(para_even, (k + 1, 1)).T
+
+    pi_factors = np.tile(np.arange(k+1), (2 * n_vertex - 1, 1)) * np.pi
+
+    Y = np.cos(para_even * pi_factors) * np.sqrt(2)
+
+    beta = np.dot(np.dot(np.linalg.pinv(np.dot(Y.T, Y)), Y.T), stream_even)
+
+    hat = np.dot(Y, beta)
+
+    wfs = hat[n_vertex -1 :]
+
+    return wfs
+
 
 
 def test_cosine_series():
 
-    helix = simulated_bundles(10)[0]
-    print(len(helix))
-    streamline = helix[0][:-2]
+    t = np.arange(0, 10.1, 0.1)
+    streamline = np.vstack((t*np.sin(t), t*np.cos(t), t)).T
     para = parametrize_arclength(streamline)
-    print(para)
-    para = parametrize_arclength(streamline[::-1])
-    print(para)
-    para = parametrize_arclength(streamline * np.array([[1.2, 1., 1.]]))
-    print(para)
+    wfs = cosine_series(streamline, para, 10)
+    assert_array_almost_equal(wfs[0], np.array([0.5963, 0.6702, 0.6373]), 3)
+    assert_array_almost_equal(wfs[-1], np.array([-4.8111, -8.7878, 9.8589]), 3)
 
-    cosine_series(streamline, para, k=10)
+    para2 = parametrize_arclength(streamline)
+    wfs2 = cosine_series(streamline, para2, k=30)
 
-    1/0
+    helix = simulated_bundles(200)[0]
+    streamline = helix[0][:-2]
+    para3 = parametrize_arclength(streamline)
+    streamline = streamline[::-1]
+    para4 = parametrize_arclength(streamline)
+    streamline2 = streamline + np.array([[5., 0, 0.]])
+    para5 = parametrize_arclength(streamline2)
 
+    wfs3 = cosine_series(streamline, para4, k=20)
+    wfs4 = cosine_series(streamline2, para5, k=20)
+
+    from dipy.viz import fvtk
+
+    ren = fvtk.ren()
+    fvtk.add(ren, fvtk.line(streamline, fvtk.colors.red))
+    fvtk.add(ren, fvtk.line(wfs3, fvtk.colors.green))
+    fvtk.add(ren, fvtk.line(streamline2, fvtk.colors.blue))
+    fvtk.add(ren, fvtk.line(wfs4, fvtk.colors.cyan))
+    fvtk.show(ren)
 
 if __name__ == '__main__':
     # run_module_suite()
