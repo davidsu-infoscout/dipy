@@ -37,9 +37,45 @@ Randomly select some seed points from the mask:
 seeds = seeds_from_mask(mask, [1, 1, 1], zooms)
 seeds = seeds[:2000]
 
-interpolator = NearestNeighborInterpolator(maskdata, zooms)
 
-pwt = ProbabilisticOdfWeightedTracker(csamodel, interpolator, mask,
+from dipy.reconst.peaks import peaks_from_model
+
+sphere = get_sphere('symmetric724')
+
+csa_peaks = peaks_from_model(model=csamodel,
+                             data=maskdata,
+                             sphere=sphere,
+                             mask=mask,
+                             relative_peak_threshold=.5,
+                             min_separation_angle=25,
+                             parallel=True)
+
+
+
+class FakeModel():
+    def __init__(self, B_matrix):
+        self.B = B_matrix
+
+    def fit(self, shm_coeff):
+        return FakeFit(self.B, shm_coeff)
+
+class FakeFit():
+    def __init__(self, B, shm_coeff):
+        self.B = B
+        self.shm_coeff = shm_coeff
+
+    def odf(self, sphere=None):
+
+        return np.dot(self.B.T, self.shm_coeff)
+
+
+fmodel = FakeModel(csa_peaks.B)
+
+
+#interpolator = NearestNeighborInterpolator(maskdata, zooms)
+interpolator = NearestNeighborInterpolator(csa_peaks.shm_coeff, zooms)
+
+pwt = ProbabilisticOdfWeightedTracker(fmodel, interpolator, mask,
                                       stepper, 20, seeds, sphere)
 csa_streamlines = list(pwt)
 
