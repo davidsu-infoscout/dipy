@@ -62,8 +62,8 @@ stopping_values[:] = FA[..., None]
 
 ren = fvtk.ren()
 
-streamline_generator = EuDX(stopping_values[..., 0],
-                            csd_peaks.peak_indices[..., 0],
+streamline_generator = EuDX(stopping_values,#[..., :5],
+                            csd_peaks.peak_indices,#[..., :5],
                             seeds=10**4,
                             odf_vertices=sphere.vertices,
                             a_low=0.1)
