@@ -6,12 +6,12 @@ from dipy.viz import fvtk
 
 
 
-SNR = 100
+SNR = 20
 S0 = 1
 
 fdwi, fbvals, fbvecs = get_data('small_64D')
 
-bvals = np.load(fbvals)
+bvals = np.load(fbvals) * 3
 bvecs = np.load(fbvecs)
 
 gtab = gradient_table(bvals, bvecs)
@@ -25,7 +25,7 @@ S, sticks = multi_tensor(gtab, mevals, S0, angles=angles,
 
 #sphere = get_sphere('symmetric362')
 sphere = get_sphere('symmetric724')
-#sphere = sphere.subdivide(2)
+sphere = sphere.subdivide(1)
 
 odf_gt = multi_tensor_odf(sphere.vertices, mevals, angles, [50, 50])
 
@@ -38,8 +38,9 @@ fvtk.show(ren)
 # Dictionary creation
 
 num_dir = 64
-num_dir_fod = 724
-response = (np.array([0.0017, 0.0002, 0.0002]), S0)
+num_dir_fod = len(sphere.vertices)
+response = (np.array([0.0015, 0.000, 0.000]), S0)
+num_iter = 200
 
 H = np.zeros((num_dir, num_dir_fod))
 
@@ -64,6 +65,20 @@ print(H_t_s.shape)
 
 fod = np.ones(num_dir_fod)/float(num_dir)
 
-for i in range():
+
+for i in range(num_iter):
+
+    H_f = np.dot(H, fod)
+
+    fod = fod * (H_t_s / np.dot(H_t, H_f))
+
+fvtk.clear(ren)
+
+fvtk.add(ren, fvtk.sphere_funcs(fod, sphere))
+
+fvtk.show(ren)
+
+
+
 
 
