@@ -8,82 +8,181 @@ from dipy.core.gradients import gradient_table, GradientTable
 from dipy.io.gradients import read_bvals_bvecs
 from dipy.reconst.peaks import peaks_from_model
 from dipy.tracking.eudx import EuDX
+from dipy.segment.mask import median_otsu
+from dipy.denoise.nlmeans import nlmeans
+from dipy.reconst.csdeconv import auto_response
+from dipy.reconst.csdeconv import ConstrainedSphericalDeconvModel
 
 
-dname = '/home/eleftherios/Data/Alessandro_Crimi/data/'
-fdwi = dname + 'dwi1_fsl.nii.gz'
-fbval = dname + 'bvals.txt'
-fbvec = dname + 'bvec.txt'
+def save_nifti(data, affine, dtype, filename):
+    nib.save(nib.Nifti1Image(data.astype(dtype), affine), filename)
 
-bvecs = np.loadtxt(fbvec)
 
-gtab = GradientTable(3000 * bvecs)
+def save_trk(streamlines, img, filename):
+    hdr = nib.trackvis.empty_header()
+    hdr['voxel_size'] = img.get_header().get_zooms()[:3]
+    hdr['voxel_order'] = 'LAS'
+    hdr['dim'] = img.get_data().shape[:3]
 
-img = nib.load(fdwi)
-data = img.get_data()
-affine = img.get_affine()
+    shore_streamlines_trk = ((sl, None, None) for sl in streamlines)
+    shore_sl_fname = filename
+    nib.trackvis.write(shore_sl_fname, shore_streamlines_trk, hdr, points_space='voxel')
 
-print('data.shape (%d, %d, %d, %d)' % data.shape)
 
-mask = data[..., 0] > 50
+def fvtk_gradients(gtab, radius, out_path, n_frames=1):
 
-tensor_model = TensorModel(gtab)
+    ren = fvtk.ren()
+    fvtk.add(ren, fvtk.point(gtab.gradients, fvtk.colors.red, point_radius=radius))
+    fvtk.show(ren)
+    fvtk.record(ren, out_path, n_frames=n_frames)
 
-tensor_fit = tensor_model.fit(data, mask)
 
-radial_order = 6
-zeta = 700
-lambdaN = 1e-8
-lambdaL = 1e-8
-shore_model = ShoreModel(gtab, radial_order=radial_order,
-                         zeta=zeta, lambdaN=lambdaN, lambdaL=lambdaL,
-                         constrain_e0=True)
+def fvtk_bvecs(bvecs, radius, out_path, n_frames=1):
 
-sphere = get_sphere('symmetric724')
+    ren = fvtk.ren()
+    fvtk.add(ren, fvtk.point(bvecs, fvtk.colors.red, point_radius=radius))
+    fvtk.show(ren)
+    fvtk.record(ren, out_path, n_frames=n_frames)
 
-shore_peaks = peaks_from_model(model=shore_model,
-                               data=data,
-                               mask=mask,
-                               sphere=sphere,
-                               relative_peak_threshold=.5,
-                               min_separation_angle=25,
-                               parallel=True)
 
-ren = fvtk.ren()
-fvtk.add(ren, fvtk.peaks(shore_peaks.peak_dirs[:, :, 73/2],
-         shore_peaks.peak_values[:, :, 73/2], scale=0.5))
-fvtk.show(ren)
+def dipy_to_fibernav_peaks(peaks):
+    peaks_dirs = peaks.peak_dirs
+    peaks_dirs = peaks_dirs.reshape(peaks_dirs.shape[:3] + (15,))
+    return peaks_dirs
 
-nib.save(nib.Nifti1Image(tensor_fit.fa, affine), 'FA_map.nii.gz')
-nib.save(nib.Nifti1Image(shore_peaks.shm_coeff, affine), 'SH_map.nii.gz')
 
-stopping_values = np.zeros(shore_peaks.peak_values.shape)
-stopping_values[:] = tensor_fit.fa[..., None]
+def eudx_streamlines(stopping_volume, stopping_threshold, 
+                     peaks, seeds, sphere):
 
-streamline_generator = EuDX(stopping_values,
-                            shore_peaks.peak_indices,
-                            seeds= 10**6,
-                            odf_vertices=sphere.vertices,
-                            a_low=0.1)
+    stopping_values = np.zeros(shore_peaks.peak_values.shape)
+    stopping_values[:] = stopping_volume[..., None]
 
-streamlines = [streamline for streamline in streamline_generator]
+    print('Generating and saving CSD streamlines ...')
+    streamline_generator = EuDX(stopping_values,
+                                peaks.peak_indices,
+                                seeds = seeds,
+                                odf_vertices=sphere.vertices,
+                                a_low=stopping_threshold)
 
-import nibabel as nib
+    return [streamline for streamline in streamline_generator]
+   
 
-hdr = nib.trackvis.empty_header()
-hdr['voxel_size'] = img.get_header().get_zooms()[:3]
-hdr['voxel_order'] = 'LAS'
-hdr['dim'] = tensor_fit.fa.shape[:3]
+if __name__ == '__main__':
+    
+    dname = '/home/eleftherios/Data/Alessandro_Crimi/data/'
+    fdwi = dname + 'dwi1_fsl.nii.gz'
+    fbval = dname + 'bvals.txt'
+    fbvec = dname + 'bvec.txt'
+    seeds = 10**6
+    stopping_threshold = 0.1
+    denoise = False
+    reconst_shore = False
+    reconst_csd = True
 
-shore_streamlines_trk = ((sl, None, None) for sl in streamlines)
+    fname_ending = '_crimi'
+    
+    print('Loading dataset ...')
 
-shore_sl_fname = 'shore_streamlines.trk'
+    bvecs = np.loadtxt(fbvec)
 
-nib.trackvis.write(shore_sl_fname, shore_streamlines_trk, hdr, points_space='voxel')
+    gtab = GradientTable(3000 * bvecs)
 
-# r = fvtk.ren()
-# sfu = fvtk.sphere_funcs(odf[:, None, :], sphere, colormap='jet')
-# sfu.RotateX(-90)
-# fvtk.add(r, sfu)
-# fvtk.record(r, n_frames=1, out_path='odfs.png', size=(600, 600))
+    img = nib.load(fdwi)
+    data = img.get_data()
+    affine = img.get_affine()
+    
+    print('data.shape (%d, %d, %d, %d)' % data.shape)
+
+    _, mask = median_otsu(data, 4, 4)
+
+    save_nifti(mask, affine, np.uint8, 'mask' + fname_ending + '.nii.gz')
+
+    sigma = np.std(data[..., 0][~mask])
+
+    print('Starting nlmeans...')
+
+    if denoise:
+        
+        data = nlmeans(data, sigma=sigma, mask=mask)
+
+    tensor_model = TensorModel(gtab)
+
+    print('Starting Tensor fitting...')
+
+    tensor_fit = tensor_model.fit(data, mask)
+
+    save_nifti(tensor_fit.fa, affine, np.float32, 'FA' + fname_ending + '.nii.gz')
+
+    sphere = get_sphere('symmetric724')
+
+    if reconst_shore:
+        print('Starting Shore fitting and peaks...')
+
+        shore_model = ShoreModel(gtab, constrain_e0=True)        
+
+        shore_peaks = peaks_from_model(model=shore_model,
+                                       data=data,
+                                       mask=mask,
+                                       sphere=sphere,
+                                       relative_peak_threshold=.5,
+                                       min_separation_angle=25,
+                                       parallel=True)
+       
+
+        save_nifti(dipy_to_fibernav_peaks(shore_peaks), affine, 
+                   np.float32, 'shore_dirs_fibernav' + fname_ending + '.nii.gz')
+
+        print('Saving Shore ODFs as SH ...')
+        
+        save_nifti(shore_peaks.shm_coeff, affine, np.float32, 'SH' + fname_ending + '.nii.gz')
+
+        stopping_values = np.zeros(shore_peaks.peak_values.shape)
+        stopping_values[:] = tensor_fit.fa[..., None]
+
+        print('Generating and saving Shore streamlines ...')
+        streamline_generator = EuDX(stopping_values,
+                                    shore_peaks.peak_indices,
+                                    seeds = seeds,
+                                    odf_vertices=sphere.vertices,
+                                    a_low=stopping_threshold)
+
+        streamlines = [streamline for streamline in streamline_generator]
+
+        save_trk(streamlines, img, 'shore_streamlines' + fname_ending + '.trk')
+
+    if reconst_csd:
+
+        response, ratio = auto_response(gtab, data, roi_radius=10, fa_thr=0.7)
+
+        csd_model = ConstrainedSphericalDeconvModel(gtab, response)
+
+        csd_peaks = peaks_from_model(model=csd_model,
+                                    data=data,
+                                    mask=mask,
+                                    sphere=sphere,
+                                    relative_peak_threshold=.5,
+                                    min_separation_angle=25,
+                                    parallel=True)
+
+        save_nifti(dipy_to_fibernav_peaks(csd_peaks), affine, 
+                   np.float32, 'csd_dirs_fibernav' + fname_ending + '.nii.gz')
+
+        print('Saving CSD ODFs as SH ...')
+        
+        save_nifti(csd_peaks.shm_coeff, affine, np.float32, 'csd_SH' + fname_ending + '.nii.gz')
+
+        stopping_values = np.zeros(csd_peaks.peak_values.shape)
+        stopping_values[:] = tensor_fit.fa[..., None]
+
+        print('Generating and saving CSD streamlines ...')
+        streamline_generator = EuDX(stopping_values,
+                                    csd_peaks.peak_indices,
+                                    seeds = seeds,
+                                    odf_vertices=sphere.vertices,
+                                    a_low=stopping_threshold)
+
+        streamlines = [streamline for streamline in streamline_generator]
+
+        save_trk(streamlines, img, 'csd_streamlines' + fname_ending + '.trk')
+
 
