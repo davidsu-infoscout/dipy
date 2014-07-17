@@ -388,6 +388,7 @@ class ShoreFit():
             self.model.cache_set('shore_matrix_odf', sphere, upsilon)
 
         odf = np.dot(upsilon, self._shore_coef)
+        odf[np.isnan(odf)] = 0
         return odf
 
     def rtop_signal(self):

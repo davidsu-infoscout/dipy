@@ -52,19 +52,19 @@ def dipy_to_fibernav_peaks(peaks):
 
 
 def eudx_streamlines(stopping_volume, stopping_threshold, 
-                     peaks, seeds, sphere):
+                     peaks, seeds, sphere, final_number):
 
-    stopping_values = np.zeros(shore_peaks.peak_values.shape)
+    stopping_values = np.zeros(peaks.peak_values.shape)
     stopping_values[:] = stopping_volume[..., None]
 
-    print('Generating and saving CSD streamlines ...')
+    print('Generating and saving streamlines ...')
     streamline_generator = EuDX(stopping_values,
                                 peaks.peak_indices,
                                 seeds = seeds,
                                 odf_vertices=sphere.vertices,
                                 a_low=stopping_threshold)
 
-    return [streamline for streamline in streamline_generator]
+    return [streamline for streamline in streamline_generator][:final_number]
    
 
 if __name__ == '__main__':
@@ -75,10 +75,11 @@ if __name__ == '__main__':
     fbvec = dname + 'bvec.txt'
     seeds = 10**6
     stopping_threshold = 0.1
-    denoise = False
-    reconst_shore = False
-    reconst_csd = True
+    denoise = True
+    reconst_shore = True
+    reconst_csd = False
 
+    final_number = 400000
     fname_ending = '_crimi'
     
     print('Loading dataset ...')
@@ -103,7 +104,7 @@ if __name__ == '__main__':
 
     if denoise:
         
-        data = nlmeans(data, sigma=sigma, mask=mask)
+        data = nlmeans(data, sigma=sigma/3., mask=mask)
 
     tensor_model = TensorModel(gtab)
 
@@ -136,23 +137,16 @@ if __name__ == '__main__':
         
         save_nifti(shore_peaks.shm_coeff, affine, np.float32, 'SH' + fname_ending + '.nii.gz')
 
-        stopping_values = np.zeros(shore_peaks.peak_values.shape)
-        stopping_values[:] = tensor_fit.fa[..., None]
-
-        print('Generating and saving Shore streamlines ...')
-        streamline_generator = EuDX(stopping_values,
-                                    shore_peaks.peak_indices,
-                                    seeds = seeds,
-                                    odf_vertices=sphere.vertices,
-                                    a_low=stopping_threshold)
-
-        streamlines = [streamline for streamline in streamline_generator]
+        streamlines = eudx_streamlines(tensor_fit.fa, 0.1, 
+                                       shore_peaks, seeds, sphere, final_number)
 
         save_trk(streamlines, img, 'shore_streamlines' + fname_ending + '.trk')
 
     if reconst_csd:
 
         response, ratio = auto_response(gtab, data, roi_radius=10, fa_thr=0.7)
+        response = (np.array([0.0015, 0.0003, 0.0003]), 163.)
+        ratio = 3/15.
 
         csd_model = ConstrainedSphericalDeconvModel(gtab, response)
 
@@ -171,18 +165,9 @@ if __name__ == '__main__':
         
         save_nifti(csd_peaks.shm_coeff, affine, np.float32, 'csd_SH' + fname_ending + '.nii.gz')
 
-        stopping_values = np.zeros(csd_peaks.peak_values.shape)
-        stopping_values[:] = tensor_fit.fa[..., None]
-
-        print('Generating and saving CSD streamlines ...')
-        streamline_generator = EuDX(stopping_values,
-                                    csd_peaks.peak_indices,
-                                    seeds = seeds,
-                                    odf_vertices=sphere.vertices,
-                                    a_low=stopping_threshold)
-
-        streamlines = [streamline for streamline in streamline_generator]
-
+        streamlines = eudx_streamlines(tensor_fit.fa, 0.1, 
+                                       csd_peaks, seeds, sphere, final_number)
+        
         save_trk(streamlines, img, 'csd_streamlines' + fname_ending + '.trk')
 
 
