@@ -86,7 +86,7 @@ for modulename, other_sources, language in (
     ('dipy.tracking.vox2track', [], 'c'),
     ('dipy.tracking.propspeed', [], 'c'),
     ('dipy.denoise.denspeed', [], 'c'),
-	('dipy.align.vector_fields', [], 'c'),
+	  ('dipy.align.vector_fields', [], 'c'),
     ('dipy.align.sumsqdiff', [], 'c'),
     ('dipy.align.expectmax', [], 'c'),
     ('dipy.align.crosscorr', [], 'c')
@@ -94,6 +94,7 @@ for modulename, other_sources, language in (
     pyx_src = pjoin(*modulename.split('.')) + '.pyx'
     EXTS.append(Extension(modulename, [pyx_src] + other_sources,
                           language=language,
+                          define_macros=[('CYTHON_TRACE','1')],
                           include_dirs=[np.get_include(), "src"]))
 
 

@@ -1,7 +1,10 @@
 #!python
+#cython: linetrace=True
+#cython: profile=True
 #cython: boundscheck=False
 #cython: wraparound=False
 #cython: cdivision=True
+
 
 import numpy as np
 cimport cython
