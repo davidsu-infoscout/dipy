@@ -8,10 +8,11 @@ from numpy.testing import (assert_equal,
                            run_module_suite,
                            assert_array_equal,
                            assert_raises)
-from dipy.sims.voxel import SticksAndBall
+from dipy.sims.voxel import SticksAndBall, multi_tensor
 from dipy.core.subdivide_octahedron import create_unit_sphere
 from dipy.core.sphere_stats import angular_similarity
 from dipy.reconst.tests.test_dsi import sticks_and_ball_dummies
+
 
 
 def test_shore_odf():
@@ -21,7 +22,7 @@ def test_shore_odf():
     sphere = get_sphere('symmetric724')
 
     # load icosahedron sphere
-    sphere2 = create_unit_sphere(5)    
+    sphere2 = create_unit_sphere(5)
     data, golden_directions = SticksAndBall(gtab, d=0.0015,
                                             S0=100, angles=[(0, 0), (90, 0)],
                                             fractions=[50, 50], snr=None)
@@ -56,20 +57,61 @@ def test_shore_odf():
             assert_equal(gfa(odf) < 0.1, True)
 
 
-def test_multivox_shore():    
+def test_multivox_shore():
     gtab = get_3shell_gtab()
 
     data = np.random.random([20, 30, 1, gtab.gradients.shape[0]])
     radial_order = 4
     zeta = 700
-    asm = ShoreModel(gtab, radial_order=radial_order, zeta=zeta, lambdaN=1e-8, lambdaL=1e-8)
+    asm = ShoreModel(gtab, radial_order=radial_order, zeta=zeta,
+                     lambdaN=1e-8, lambdaL=1e-8)
     asmfit = asm.fit(data)
     c_shore=asmfit.shore_coeff
     assert_equal(c_shore.shape[0:3], data.shape[0:3])
     assert_equal(np.alltrue(np.isreal(c_shore)), True)
 
 
-if __name__ == '__main__':
-    run_module_suite()
+def test_shore_deconv():
 
-    
+    SNR = 100
+    S0 = 1
+
+    gtab = get_3shell_gtab()
+
+    mevals = np.array(([0.0015, 0.0003, 0.0003],
+                       [0.0015, 0.0003, 0.0003]))
+
+    angles = [(0, 0), (60, 0)]
+
+    data, sticks = multi_tensor(gtab, mevals, S0, angles=angles,
+                                fractions=[50, 50], snr=SNR)
+
+    sphere = get_sphere('symmetric724')
+
+    radial_order = 6
+    zeta = 700
+
+    sm = ShoreModel(gtab, radial_order=radial_order, zeta=zeta,
+                    lambdaN=1e-8, lambdaL=1e-8)
+    smfit = sm.fit(data)
+
+    odf = smfit.odf(sphere)
+
+    odf_sharp = smfit.odf_sharp(sphere)
+
+    from dipy.viz import fvtk
+
+    ren = fvtk.ren()
+    fvtk.add(ren, fvtk.sphere_funcs(odf, sphere))
+    fvtk.show(ren)
+
+    fvtk.clear(ren)
+    fvtk.add(ren, fvtk.sphere_funcs(odf_sharp, sphere))
+    fvtk.show(ren)
+
+    1/0
+
+if __name__ == '__main__':
+    #run_module_suite()
+    test_shore_deconv()
+

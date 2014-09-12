@@ -9,10 +9,11 @@ from scipy.special import genlaguerre, gamma, hyp2f1
 
 from .cache import Cache
 from .multi_voxel import multi_voxel_fit
-from .shm import real_sph_harm
+from .shm import real_sph_harm, sf_to_sh, sh_to_sf
 from ..core.geometry import cart2sphere
 
 from ..utils.optpkg import optional_package
+from .csdeconv import odf_sh_to_sharp
 
 cvxopt, have_cvxopt, _ = optional_package("cvxopt")
 
@@ -467,6 +468,20 @@ class ShoreFit():
         """
         return self._shore_coef
 
+    def odf_sharp(self, sphere):
+
+        odf = self.odf(sphere)
+
+        sh = sf_to_sh(odf, sphere, 8)
+
+        odf_sharp = odf_sh_to_sharp(sh, sphere,
+                                    basis=None, ratio=3 / 15.,
+                                    sh_order=8, lambda_=1., tau=0.1,
+                                    r2_term=True)
+
+
+        return sh_to_sf(odf_sharp, sphere, 8)
+
 
 def shore_matrix(radial_order, zeta, gtab, tau=1 / (4 * np.pi ** 2)):
     r"""Compute the SHORE matrix for modified Merlet's 3D-SHORE [1]_
@@ -794,3 +809,5 @@ def shore_order(n, l, m):
                     counter += 1
 
     return radial_order, counter_i
+
+
