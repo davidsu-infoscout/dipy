@@ -4,7 +4,7 @@ from numpy.testing import (run_module_suite,
                            assert_equal,
                            assert_raises,
                            assert_array_almost_equal)
-from dipy.denoise.nlmeans import nlmeans
+from dipy.denoise.nlmeans import nlmeans, nlmeans_3d
 from dipy.denoise.denspeed import add_padding_reflection, remove_padding
 
 
@@ -65,6 +65,17 @@ def test_nlmeans_4D_and_mask():
     assert_equal(S0.shape, S0n.shape)
     assert_equal(np.round(S0n[10, 10, 10]), 200)
     assert_equal(S0n[8, 8, 8], 0)
+
+def test_nlmeans_3D_mask_and_contiguousness():
+
+    S0 = 200 * np.ones((20, 20, 20), dtype='f8')
+    S0n = nlmeans(S0, sigma=15, mask=None)
+
+    S0n2 = nlmeans_3d(S0, sigma=15, mask=None)
+
+    S0 = np.asfortranarray(S0)
+    S0n = nlmeans(S0, sigma=15, mask=None)    
+    S0n2 = nlmeans_3d(S0, sigma=15, mask=None)
 
 
 def test_nlmeans_dtype():
