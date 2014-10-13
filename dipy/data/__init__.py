@@ -384,3 +384,4 @@ def get_cmap(name):
         return rgba
 
     return simple_cmap
+
