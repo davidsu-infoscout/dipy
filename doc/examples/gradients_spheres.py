@@ -171,7 +171,7 @@ colors = np.ascontiguousarray(colors)
 fvtk.add(ren, fvtk.point(gtab.gradients, colors, point_radius=100))
 
 print('Saving illustration as gradients.png')
-fvtk.record(ren, out_path='gradients.png', size=(300, 300))
+fvtk.record(ren, out_path='gradients.png', size=(600, 600))
 
 """
 .. figure:: gradients.png
