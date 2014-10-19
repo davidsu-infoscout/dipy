@@ -1,0 +1,334 @@
+#! /usr/bin/env python
+# from _heapq import __about__
+
+#TODO : Implement the transformation functions
+
+import dipy.viz.guillotine as guillotine
+import dipy.viz.fvtk as fvtk
+import dipy.viz.fvtk_actors as fvtk_a
+import dipy.viz.fvtk_util as fvtk_u
+import nibabel as nib
+import numpy as np
+import argparse
+from warnings import warn
+
+DESCRIPTION = """
+    View and explore volume data and other sources through the Guillotine.
+    
+    Examples
+    --------
+        # Simple viewing
+        dipy_shoot fa_1x1x1.nii.gz
+        
+        # Blend multiple volumes
+        dipy_shoot rgb.nii.gz fa.nii.gz b0.nii.gz
+        
+        # Output a snapshot
+        dipy_shoot fa_1x1x1.nii.gz -o -f mycapture.png
+        
+        # Set a view angle before snapshot
+        dipy_shoot fa_1x1x1.nii.gz -va sagital -o
+        
+        # Set specific slice and camera settings before viewing
+        dipy_shoot fa_1x1x1.nii.gz -sp (-10.5,15,24) -so (1,0.3,0) -cz 1.3
+        
+        # Move camera from specific settings
+        dipy_shoot fa_1x1x1.nii.gz -va coronal -mce 45
+        
+        # streamlines display
+        dipy_shoot fa_1x1x1.nii.gz -strl bundles_cc_1.trk
+        
+        # streamlines display multiple files
+        dipy_shoot fa_1x1x1.nii.gz -strl bundles_cc_1.trk bundles_af.left.trk
+
+        # streamlines: display with tubes
+        dipy_shoot fa_1x1x1.nii.gz -strl bundles_cc_1.trk -tube
+        
+        # streamlines: size (for lines and tubes)
+        dipy_shoot fa_1x1x1.nii.gz -strl bundles_cc_1.trk -tube -lw 1.0
+        
+        # streamlines with automatic camera view
+        dipy_shoot fa_1x1x1.nii.gz -strl bundles_af.left.trk -autov
+        
+        # streamlines auto view with slice angle
+        dipy_shoot fa_1x1x1.nii.gz -strl bundles_af.left.trk -autov -sa sagital
+        
+        # streamlines auto view + move camera
+        dipy_shoot fa_1x1x1.nii.gz -strl bundles_af.left.trk -autov -sa sagital -mcr 90
+
+        # streamlines with colormap
+        dipy_shoot fa_1x1x1.nii.gz -strl bundles_cc_1.trk -cmap fa_1x1x1.nii.gz
+        
+        # streamlines with colormap and more setting
+        dipy_shoot fa_1x1x1.nii.gz -strl bundles_af.left.trk -cmap fa_1x1x1.nii.gz -tube -autov -sa sagital
+    """
+
+EPILOG = guillotine.Guillotine.KeyboardShortcuts
+
+def angle(arg):
+    if arg == "sagital" or arg == "coronal" or arg == "axial":
+        return arg
+    else:
+        raise argparse.ArgumentTypeError("Error : Argument must be either 'sagital', 'coronal' or 'axial' ")
+
+
+def vectorf2(arg):
+    try:
+        arg = arg.replace('(', '')
+        arg = arg.replace(')', '')
+        arg = arg.split(',')
+        arg = (float(arg[0]), float(arg[1]))
+        return arg
+    except:
+        raise argparse.ArgumentTypeError("Error : Argument must be '(v1,v2)'")
+
+
+def vectorf3(arg):
+    try:
+        arg = arg.replace('(', '')
+        arg = arg.replace(')', '')
+        arg = arg.split(',')
+        arg = (float(arg[0]), float(arg[1]), float(arg[2]))
+        return arg
+    except:
+        raise argparse.ArgumentTypeError("Error : Argument must be '(v1,v2,v3)'")
+
+
+def buildArgsParser():
+    p = argparse.ArgumentParser(description=DESCRIPTION, epilog=EPILOG, formatter_class=argparse.RawTextHelpFormatter)
+
+    p.add_argument('input',
+                   action='store',
+                   type=str,
+                   help="File paths of data volumes.",
+                   nargs='*')
+    p.add_argument('-strl',
+                   action='store',
+                   type=str,
+                   default=(),
+                   help="File paths of streamlines.",
+                   nargs='*')
+    p.add_argument('-cmap',
+                   action='store',
+                   type=str,
+                   default=None,
+                   help="File paths of the colormap for streamlines")
+    p.add_argument('-axes',
+                   action='store_true',
+                   help="Activate axes around volume.")
+    p.add_argument('-origin',
+                   action='store_true',
+                   help="Adds colored axes at origin.")
+    p.add_argument('-o',
+                   action='store_true',
+                   help="Takes a screen capture of the current built guillotine.")
+    p.add_argument('-size',
+                   help="Render size '(w,h)'.",
+                   default=(1024, 768),
+                   type=vectorf2)
+    p.add_argument('-f',
+                   action='store',
+                   type=str,
+                   default=None,
+                   help="File path of the output screen capture.")
+    p.add_argument('-tube',
+                   action='store_true',
+                   default=False,
+                   help="Use streamtubes for streamlines")
+    p.add_argument('-lw',
+                   action='store',
+                   type=float,
+                   default="0.3",
+                   help="Set streamlines width")
+    p.add_argument('-autov',
+                   action='store_true',
+                   default=False,
+                   help="Set automaticly the camera angle with streamlines")
+    p.add_argument('-va',
+                   action='store',
+                   type=angle,
+                   default=None,
+                   help="Set view angle of the data (sagital, coronal or axial).")
+    p.add_argument('-sa',
+                   action='store',
+                   type=angle,
+                   default=None,
+                   help="Set slice angle of the data (sagital, coronal or axial).")
+    p.add_argument('-sp',
+                   action='store',
+                   type=vectorf3,
+                   default=None,
+                   help="Set slice origin position of the data '(x,y,z).'")
+    p.add_argument('-so',
+                   action='store',
+                   type=vectorf3,
+                   default=None,
+                   help="Set slice normal orientation of the data '(n1,n2,n3)'.")
+    p.add_argument('-ca',
+                   action='store',
+                   type=angle,
+                   default=None,
+                   help="Set camera angle (sagital, coronal or axial).")
+    p.add_argument('-caz',
+                   action='store',
+                   type=float,
+                   default="0.0",
+                   help="Set camera azimuth in [-180, 180] degrees.")
+    p.add_argument('-ce',
+                   action='store',
+                   type=float,
+                   default="0.0",
+                   help="Set camera elevation in [-90, 90] degrees.")
+    p.add_argument('-cr',
+                   action='store',
+                   type=float,
+                   default="0.0",
+                   help="Set camera roll in [-180, 180] degrees.")
+    p.add_argument('-cz',
+                   action='store',
+                   type=float,
+                   default="0.0",
+                   help="Set camera zoom factor in ]0.0, infinite[.")
+    p.add_argument('-mcaz',
+                   action='store',
+                   type=float,
+                   default="0.0",
+                   help="Move camera azimuth in [-180, 180] degrees.")
+    p.add_argument('-mce',
+                   action='store',
+                   type=float,
+                   default="0.0",
+                   help="Move camera elevation [-90, 90] in degrees.")
+    p.add_argument('-mcr',
+                   action='store',
+                   type=float,
+                   default="0.0",
+                   help="Move camera roll in [-180, 180] degrees.")
+    p.add_argument('-mcz',
+                   action='store',
+                   type=float,
+                   default="0.0",
+                   help="Move camera zoom factor in ]0.0, infinite[.")
+
+    return p
+
+
+def load_data_volume(filename):
+    data = nib.load(filename)
+    volume_data = data.get_data()
+    affine = data.get_affine()
+
+    return volume_data, affine
+
+
+def load_streamlines(filename):
+    streams, hdr = nib.trackvis.read(filename, points_space='rasmm')
+    streamlines = [s[0] for s in streams]
+
+    return streamlines
+
+
+def main():
+    # Parse arguments
+    parser = buildArgsParser()
+    args = parser.parse_args()
+
+    # Initialize guillotine
+    g = guillotine.Guillotine()
+
+    if len(args.input) == 0:
+        parser.print_help()
+        return
+    
+    # Load data volumes
+    for filename in args.input:
+        data, affine = load_data_volume(filename)
+        g.add_data_volume(data, 0.5, affine)
+
+    if args.cmap is not None:
+        cmap, cmap_affine = load_data_volume(filename)
+    else:
+        cmap = None
+
+    # Load streamlines
+    for filename in args.strl:
+        streamlines = load_streamlines(filename)
+
+        #autoview rotation (only for the first bundle)
+        if args.autov and filename == args.strl[0]:
+            rotation = fvtk_u.rotation_from_lines(streamlines)
+
+        if cmap is None :
+            colors = None
+        else:
+            #transform points to find colors
+            points = np.vstack(streamlines)
+            points = nib.affines.apply_affine(np.linalg.inv(cmap_affine), points)
+            colors = fvtk_u.trilinear_interp(cmap, points)
+
+        if args.tube:
+            strl_actor = fvtk_a.streamtube(streamlines, colors, linewidth=args.lw)
+        else:
+            strl_actor = fvtk_a.line(streamlines, colors, linewidth=args.lw)
+
+        g.add_actor(strl_actor)
+
+    # Display colored axes at the origin
+    if args.origin:
+        actor = fvtk.axes((20, 20, 20))
+        g.add_actor(actor)
+
+    # Build the guillotine
+    g.build()
+
+    # Display axes around data
+    if args.axes:
+        g.toggle_axes()
+
+
+    # Move camera view
+    if args.autov and len(args.strl) > 0:
+        g.set_camera_transfo(rotation)
+
+        # AutoV Warnings
+        if len(args.strl) > 1:
+            warn("AutoView only use the first streamlines file :" + args.strl[0])
+        if args.va is not None or args.ca is not None :
+            warn("AutoView disable parameters for camera view angle(va,ca,...)")
+
+        if args.sa is None:
+            # Set plane orientation
+            g.set_plane(args.sp, args.so)
+        else:
+            # Set slice angle
+            g.set_plane_angle(args.sa)
+
+    elif args.va is None:
+        if args.sa is None:
+            # Set plane orientation
+            g.set_plane(args.sp, args.so)
+        else:
+            # Set slice angle
+            g.set_plane_angle(args.sa)
+        
+        if args.ca is None:
+            # Set camera orientation
+            g.set_camera(args.caz, args.ce, args.cr, args.cz)
+        else:
+            # Set camera angle
+            g.set_camera_angle(args.ca)
+    else:
+        # Set view angle of the data
+        g.set_view_angle(args.va)
+
+    # Move camera from current orientation
+    g.move_camera(args.mcaz, args.mce, args.mcr, args.mcz)
+
+    # Snapshot or show the guillotine
+    if args.o:
+        g.snapshot(args.f, args.size)
+    else:
+        g.show()
+
+if __name__ == "__main__":
+    main()

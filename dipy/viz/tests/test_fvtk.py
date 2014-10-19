@@ -106,3 +106,19 @@ def test_colormaps_matplotlib():
         rgba2 = data.get_cmap(name)(v)
         # dipy's colormaps are close to matplotlibs colormaps, but not perfect
         npt.assert_array_almost_equal(rgba1, rgba2, 1)
+
+
+@npt.dec.skipif(not fvtk.have_vtk)
+@npt.dec.skipif(not fvtk.have_vtk_colors)
+def test_fvtk_line_actors():
+
+    pass
+
+
+@npt.dec.skipif(not fvtk.have_vtk)
+@npt.dec.skipif(not fvtk.have_vtk_colors)
+def test_fvtk_slice_actors():
+
+    pass
+
+
