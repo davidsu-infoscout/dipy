@@ -1,19 +1,11 @@
 
 from __future__ import division, print_function, absolute_import
 
-from dipy.utils.six.moves import xrange
-
-import types
-
-
 import numpy as np
 
-from dipy.core.ndindex import ndindex
-
-
 from dipy.viz.colormap import line_colors
-from dipy.viz.fvtk_util import numpy_to_vtk_points, numpy_to_vtk_colors
-from dipy.viz.fvtk_util import set_input, trilinear_interp
+from dipy.viz.fvtk.util import numpy_to_vtk_points, numpy_to_vtk_colors
+from dipy.viz.fvtk.util import set_input, trilinear_interp
 
 # Conditional import machinery for vtk
 from dipy.utils.optpkg import optional_package
@@ -26,8 +18,8 @@ numpy_support, have_ns, _ = optional_package('vtk.util.numpy_support')
 
 
 
-def streamtube(lines, colors=None, opacity=1, linewidth=0.01, tube_sides=9, 
-               lod=True, lod_points=10 ** 4, lod_points_size=3, 
+def streamtube(lines, colors=None, opacity=1, linewidth=0.01, tube_sides=9,
+               lod=True, lod_points=10 ** 4, lod_points_size=3,
                spline_subdiv=None, lookup_colormap=None):
     """ Uses streamtubes to visualize polylines
 
@@ -75,7 +67,7 @@ def streamtube(lines, colors=None, opacity=1, linewidth=0.01, tube_sides=9,
     # Poly data with lines and colors
     poly_data, is_colormap = lines_to_vtk_polydata(lines, colors)
     next_input = poly_data
-                     
+
     # Set Normals
     poly_normals = set_input(vtk.vtkPolyDataNormals(), next_input)
     poly_normals.ComputeCellNormalsOn()
@@ -84,7 +76,7 @@ def streamtube(lines, colors=None, opacity=1, linewidth=0.01, tube_sides=9,
     poly_normals.AutoOrientNormalsOn()
     poly_normals.Update()
     next_input = poly_normals.GetOutputPort()
-    
+
     # Spline interpolation
     if (spline_subdiv is not None) and (spline_subdiv > 0) :
         spline_filter = set_input(vtk.vtkSplineFilter(), next_input)
@@ -92,14 +84,14 @@ def streamtube(lines, colors=None, opacity=1, linewidth=0.01, tube_sides=9,
         spline_filter.SetNumberOfSubdivisions(spline_subdiv)
         spline_filter.Update()
         next_input = spline_filter.GetOutputPort()
-        
+
     # Add thickness to the resulting lines
     tube_filter = set_input(vtk.vtkTubeFilter(), next_input)
     tube_filter.SetNumberOfSides(tube_sides)
     tube_filter.SetRadius(linewidth)
     #tube_filter.SetVaryRadiusToVaryRadiusByScalar()
     tube_filter.CappingOn()
-    tube_filter.Update()  
+    tube_filter.Update()
     next_input = tube_filter.GetOutputPort()
 
     # Poly mapper
@@ -140,7 +132,7 @@ def streamtube(lines, colors=None, opacity=1, linewidth=0.01, tube_sides=9,
     return actor
 
 
-def line(lines, colors=None, opacity=1, linewidth=1, 
+def line(lines, colors=None, opacity=1, linewidth=1,
          spline_subdiv=None, lookup_colormap=None):
     """ Create an actor for one or more lines.
 
@@ -148,7 +140,7 @@ def line(lines, colors=None, opacity=1, linewidth=1,
     ------------
     lines :  list of arrays representing lines as 3d points  for example
             lines = [np.random.rand(10,3),np.random.rand(20,3)]
-            represents 2 lines the first with 10 points and the second with 
+            represents 2 lines the first with 10 points and the second with
             20 points in x,y,z coordinates.
     colors : array, shape (N,3)
             Colormap where every triplet is encoding red, green and blue e.g.
@@ -230,20 +222,20 @@ def line(lines, colors=None, opacity=1, linewidth=1,
 
 def lines_to_vtk_polydata(lines, colors=None):
     """ Create a vtkPolyData with lines and colors
-    
+
     Parameters
     ----------
     lines : list
         list of N curves represented as 2D ndarrays
     colors : array (N, 3), tuple (3,) or colormap
 
-    
+
     Returns
     ----------
-    poly_data :  VTK polydata 
+    poly_data :  VTK polydata
     is_colormap : bool, true if the input color array was a colormap
     """
-    
+
     #Get the 3d points_array
     points_array = np.vstack(lines)
 
@@ -251,7 +243,7 @@ def lines_to_vtk_polydata(lines, colors=None):
     nb_points = len(points_array)
 
     lines_range = range(nb_lines)
-    
+
     # Get lines_array in vtk input format
     lines_array = []
     points_per_line = np.zeros([nb_lines],np.int64)
@@ -264,19 +256,19 @@ def lines_to_vtk_polydata(lines, colors=None):
         lines_array += [current_len]
         lines_array += range(current_position,end_position)
         current_position = end_position
-        
+
     lines_array = np.array(lines_array)
-    
+
     # Set Points to vtk array format
     vtk_points = numpy_to_vtk_points(points_array)
-    
+
     # Set Lines to vtk array format
     vtk_lines = vtk.vtkCellArray()
     vtk_lines.GetData().DeepCopy(numpy_support.numpy_to_vtk(lines_array))
     vtk_lines.SetNumberOfCells(len(lines))
 
     is_colormap = False
-    # Get colors_array (reformat to have colors for each points) 
+    # Get colors_array (reformat to have colors for each points)
     #           - if/else tested and work in normal simple case
     if colors is None: #set automatic rgb colors
         cols_arr = line_colors(lines)
@@ -306,7 +298,7 @@ def lines_to_vtk_polydata(lines, colors=None):
                 is_colormap = True
 
     vtk_colors.SetName("Colors")
-    
+
     #Create the poly_data
     poly_data = vtk.vtkPolyData()
     poly_data.SetPoints(vtk_points)
@@ -315,7 +307,7 @@ def lines_to_vtk_polydata(lines, colors=None):
     return poly_data, is_colormap
 
 
-def colormap_lookup_table(scale_range=(0,1), hue_range=(0.8,0), 
+def colormap_lookup_table(scale_range=(0,1), hue_range=(0.8,0),
                           saturation_range=(1,1),  value_range=(0.8,0.8)):
     """ Default Lookup table for the colormap
     """
@@ -346,11 +338,11 @@ def scalar_bar(lookup_table):
 
 
 
-def plot_stats( values, names=None, colors=np.array([0,0,0,255]), 
+def plot_stats( values, names=None, colors=np.array([0,0,0,255]),
                 lookup_table=None, scalar_bar=None):
-    """ Plots statstics in a new windows 
+    """ Plots statstics in a new windows
     """
-    
+
     nb_lines = len(values)
     if colors.ndim == 1:
         colors = np.repeat(colors.reshape((1,-1)),nb_lines,axis=0)
