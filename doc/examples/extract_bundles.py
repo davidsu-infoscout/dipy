@@ -8,6 +8,8 @@ import nibabel.trackvis as tv
 from dipy.segment.extractbundles import ExtractBundles
 from glob import glob
 from dipy.viz import fvtk
+from time import time
+from copy import deepcopy
 
 
 def read_trk(fname):
@@ -15,9 +17,13 @@ def read_trk(fname):
     return [i[0] for i in streams]
 
 
-def write_trk(fname, streamlines):
+def write_trk(fname, streamlines, hdr=None):
     streams = ((s, None, None) for s in streamlines)
-    tv.write(fname, streams)
+    if hdr is not None:
+        hdr2 = deepcopy(hdr)
+        tv.write(fname, streams, hdr2, points_space='rasmm')
+    else:
+        tv.write(fname, streams, points_space='rasmm')
 
 
 def show_bundles(static, moving,  linewidth=0.15, tubes=False, fname=None):
@@ -71,6 +77,20 @@ def janice_data():
     return wb1, model_bundle, dname_whole_tracks, dname_results
 
 
+def janice_validate(tag):
+
+    initial_dir = '/home/eleftherios/Data/Hackethon_bdx/'
+
+    dname_model_bundles = initial_dir + 'bordeaux_tracts_and_stems/'
+
+    manual_bundle_trk = dname_model_bundles + \
+        tag + '/tracts/IFOF_R/' + tag + '_IFOF_R_GP.trk'
+
+    manual_bundle = read_trk(manual_bundle_trk)
+
+    return manual_bundle
+
+
 def janice_next_subject(dname_whole_streamlines, verbose=False):
 
     for wb_trk2 in glob(dname_whole_streamlines + '*.trk'):
@@ -95,12 +115,18 @@ for (streamlines, tag) in janice_next_subject(dname_whole_streamlines):
 
     print(tag)
 
-    eb = ExtractBundles()
+    eb = ExtractBundles(strategy='B', min_thr=7.)
 
-    moved_model_streamlines = eb.extract(streamlines, model_streamlines,
-                                         model_bundle)
+    t0 = time()
+
+    extracted_bundle = eb.extract(streamlines, model_streamlines,
+                                  model_bundle)
+    print('Duration %f' % (time() - t0, ))
 
     #show_bundles(streamlines, model_streamlines)
-    #show_bundles(streamlines, moved_model_streamlines)
+    show_bundles(eb.moved_model_bundle, extracted_bundle)
+
+    manual_bundle = janice_validate(tag)
+    show_bundles(manual_bundle, extracted_bundle)
 
     break

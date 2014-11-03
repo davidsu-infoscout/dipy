@@ -37,72 +37,69 @@ def whole_brain_registration(streamlines1, streamlines2,
 
     slm = slr.optimize(qb_centroids1, qb_centroids2)
 
-    print('QB1', len(qb_centroids1))
-    print('QB2', len(qb_centroids2))
+    print('QB1 %d' % len(qb_centroids1,))
+    print('QB2 %d' % len(qb_centroids2,))
 
     duration = time() - t
-    print('SAR done in  %f seconds.' % duration)
+    print('SAR done in  %f seconds.' % (duration, ))
 
     moved_streamlines2 = slm.transform(streamlines2)
 
-    return moved_streamlines2, slm.matrix, qb_centroids1, qb_centroids2
+    return moved_streamlines2, slm.matrix, qb1, qb2
 
 
-def find_bundle(model_bundle_moved, streamlines2, min_thr=10):
+def find_bundle(model_bundle_moved, streamlines2, strategy='A', min_thr=10):
 
     model_bundle_moved = set_number_of_points(model_bundle_moved, 20)
     streamlines2 = set_number_of_points(streamlines2, 20)
 
-    D = bundles_distances_mdf(model_bundle_moved, streamlines2)
+    qbm = QuickBundles(model_bundle_moved, 4)
+
+    #D = bundles_distances_mdf(model_bundle_moved, streamlines2)
+    D = bundles_distances_mdf(qbm.centroids, streamlines2)
 
     D[D > min_thr] = np.inf
 
     print(D.shape)
 
-    indices = np.argmin(D, axis=1)
+    if strategy == 'A':
+        indices = np.argmin(D, axis=1)
 
-    return [streamlines2[index] for (i, index) in enumerate(indices) if D[i, index] != np.inf]
+        return [streamlines2[index] for (i, index) in enumerate(indices)
+                if D[i, index] != np.inf]
 
-
-def find_bundle2(model_bundle_moved, streamlines2, min_thr=10):
-
-    model_bundle_moved = set_number_of_points(model_bundle_moved, 20)
-    streamlines2 = set_number_of_points(streamlines2, 20)
-
-    D = bundles_distances_mdf(model_bundle_moved, streamlines2)
-
-    D[D > min_thr] = np.inf
-
-    print(D.shape)
-
-    mins = np.min(D, axis=0)
-
-    return [streamlines2[i] for i in np.where(mins!=np.inf)[0]]
-
+    if strategy == 'B':
+        mins = np.min(D, axis=0)
+        return [streamlines2[i] for i in np.where(mins != np.inf)[0]]
 
 
 class ExtractBundles():
     """ Extract bundles from whole brain streamlines using an initial
     model of the streamlines """
 
-    def __init__(self, verbose=False):
+    def __init__(self, strategy='A', min_thr=10, verbose=False):
         self.verbose = verbose
         self.qb_model_streamlines = None
         self.qb_streamlines = None
         self.moved_model_streamlines = None
+        self.strategy = strategy
+        self.min_thr = min_thr
 
     def extract(self, streamlines, model_streamlines, model_bundle):
 
         ret = whole_brain_registration(streamlines, model_streamlines)
-        moved_model_streams, mat, qb_models_streamlines, qb_model = ret
+        moved_model_streams, mat, qb_model_streamlines, qb_streamlines = ret
 
         self.moved_model_streamlines = moved_model_streams
-        self.qb_models_streamlines = qb_models_streamlines
-        self.qb_model = qb_model
+        self.qb_model_streamlines = qb_model_streamlines
+        self.qb_streamlines = qb_streamlines
 
         moved_model_bundle = transform_streamlines(model_bundle, mat)
         self.moved_model_bundle = moved_model_bundle
 
-        find_bundle()
+        self.extracted_bundle = find_bundle(moved_model_bundle,
+                                            streamlines,
+                                            self.strategy,
+                                            min_thr=self.min_thr)
 
-
+        return self.extracted_bundle
