@@ -3,9 +3,22 @@ import numpy as np
 from dipy.align.streamlinear import StreamlineLinearRegistration
 from dipy.tracking.streamline import (length, transform_streamlines,
                                       set_number_of_points)
-from dipy.segment.quickbundles import QuickBundles
 from dipy.tracking.distances import bundles_distances_mdf
+from dipy.segment.quickbundles import QuickBundles as QuickBundles_old
+from dipy.segment.clustering import QuickBundles
 from time import time
+
+
+def remove_clusters_by_size(clusters, min_size=0):
+    sizes = np.array(map(len, clusters))
+    mean_size = sizes.mean()
+    std_size = sizes.std()
+
+    def condition(c):
+        return len(c) >= min_size  # and len(c) >= mean_size - alpha * std_size
+
+    by_size = lambda c: condition(c)
+    return filter(by_size, clusters)
 
 
 def whole_brain_registration(streamlines1, streamlines2,
@@ -23,11 +36,11 @@ def whole_brain_registration(streamlines1, streamlines2,
     print(len(streamlines1))
     print(len(streamlines2))
 
-    qb1 = QuickBundles(streamlines1, 20, 20)
+    qb1 = QuickBundles_old(streamlines1, 20, 20)
     qb1.remove_small_clusters(rm_small_clusters)
     qb_centroids1 = qb1.centroids
 
-    qb2 = QuickBundles(streamlines2, 20, 20)
+    qb2 = QuickBundles_old(streamlines2, 20, 20)
     qb2.remove_small_clusters(rm_small_clusters)
     qb_centroids2 = qb2.centroids
 
@@ -53,7 +66,7 @@ def find_bundle(model_bundle_moved, streamlines2, strategy='A', min_thr=10):
     model_bundle_moved = set_number_of_points(model_bundle_moved, 20)
     streamlines2 = set_number_of_points(streamlines2, 20)
 
-    qbm = QuickBundles(model_bundle_moved, 4)
+    qbm = QuickBundles_old(model_bundle_moved, 4)
 
     #D = bundles_distances_mdf(model_bundle_moved, streamlines2)
     D = bundles_distances_mdf(qbm.centroids, streamlines2)
