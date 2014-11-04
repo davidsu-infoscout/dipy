@@ -115,7 +115,7 @@ for (streamlines, tag) in janice_next_subject(dname_whole_streamlines):
 
     print(tag)
 
-    eb = ExtractBundles(strategy='B', min_thr=7.)
+    eb = ExtractBundles(strategy='B', min_thr=5.)
 
     t0 = time()
 
@@ -129,4 +129,4 @@ for (streamlines, tag) in janice_next_subject(dname_whole_streamlines):
     manual_bundle = janice_validate(tag)
     show_bundles(manual_bundle, extracted_bundle)
 
-    break
+
