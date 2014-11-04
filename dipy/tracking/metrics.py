@@ -33,10 +33,13 @@ def winding(xyz):
         v0=proj[j]
         v1=proj[j+1]
         v=np.dot(v0,v1)/(np.linalg.norm(v0)*np.linalg.norm(v1))
+        v=min(v, 1)
+        v=max(v, -1)
         tmp=np.arccos(v)
         turn+=tmp
 
-    return np.rad2deg(turn)
+    angle = np.rad2deg(turn)
+    return angle
 
 
 def length(xyz, along=False):
