@@ -25,9 +25,11 @@ def remove_clusters_by_size(clusters, min_size=0):
 
 
 def whole_brain_registration(streamlines1, streamlines2,
-                             rm_small_clusters=50):
-    print(len(streamlines1))
-    print(len(streamlines2))
+                             rm_small_clusters=50, verbose=False):
+
+    if verbose:
+        print(len(streamlines1))
+        print(len(streamlines2))
 
     def check_range(streamline, gt=50, lt=250):
         if (length(s) > gt) & (length(s) < lt):
@@ -36,8 +38,8 @@ def whole_brain_registration(streamlines1, streamlines2,
     streamlines1 = [s for s in streamlines1 if check_range(s)]
     streamlines2 = [s for s in streamlines2 if check_range(s)]
 
-    print(len(streamlines1))
-    print(len(streamlines2))
+    #print(len(streamlines1))
+    #print(len(streamlines2))
 
     if not NEW_QB:
 
@@ -69,11 +71,13 @@ def whole_brain_registration(streamlines1, streamlines2,
 
     slm = slr.optimize(qb_centroids1, qb_centroids2)
 
-    print('QB1 %d' % len(qb_centroids1,))
-    print('QB2 %d' % len(qb_centroids2,))
+    if verbose:
+        print('QB1 %d' % len(qb_centroids1,))
+        print('QB2 %d' % len(qb_centroids2,))
 
     duration = time() - t
-    print('SAR done in  %f seconds.' % (duration, ))
+    if verbose:
+        print('SAR done in  %f seconds.' % (duration, ))
 
     moved_streamlines2 = slm.transform(streamlines2)
 
