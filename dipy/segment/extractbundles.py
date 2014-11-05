@@ -5,8 +5,23 @@ from dipy.tracking.streamline import (length, transform_streamlines,
                                       set_number_of_points)
 from dipy.tracking.distances import bundles_distances_mdf
 from dipy.segment.quickbundles import QuickBundles as QuickBundles_old
-# from dipy.segment.clustering import QuickBundles
+from dipy.segment.clustering import QuickBundles
 from time import time
+
+
+NEW_QB = True
+
+
+def remove_clusters_by_size(clusters, min_size=0):
+    #sizes = np.array(map(len, clusters))
+    #mean_size = sizes.mean()
+    #std_size = sizes.std()
+
+    by_size = lambda c: len(c) >= min_size
+    #and len(c) >= mean_size - alpha * std_size
+
+    # filter returns a list of clusters
+    return filter(by_size, clusters)
 
 
 def whole_brain_registration(streamlines1, streamlines2,
@@ -24,13 +39,29 @@ def whole_brain_registration(streamlines1, streamlines2,
     print(len(streamlines1))
     print(len(streamlines2))
 
-    qb1 = QuickBundles_old(streamlines1, 20, 20)
-    qb1.remove_small_clusters(rm_small_clusters)
-    qb_centroids1 = qb1.centroids
+    if not NEW_QB:
 
-    qb2 = QuickBundles_old(streamlines2, 20, 20)
-    qb2.remove_small_clusters(rm_small_clusters)
-    qb_centroids2 = qb2.centroids
+        qb1 = QuickBundles_old(streamlines1, 20, 20)
+        qb1.remove_small_clusters(rm_small_clusters)
+        qb_centroids1 = qb1.centroids
+
+        qb2 = QuickBundles_old(streamlines2, 20, 20)
+        qb2.remove_small_clusters(rm_small_clusters)
+        qb_centroids2 = qb2.centroids
+
+    if NEW_QB:
+
+        rstreamlines1 = set_number_of_points(streamlines1, 20)
+        qb1 = QuickBundles(threshold=15)
+        cluster_map1 = qb1.cluster(rstreamlines1)
+        clusters1 = remove_clusters_by_size(cluster_map1, rm_small_clusters)
+        qb_centroids1 = [cluster.centroid for cluster in clusters1]
+
+        rstreamlines2 = set_number_of_points(streamlines2, 20)
+        qb2 = QuickBundles(threshold=15)
+        cluster_map2 = qb2.cluster(rstreamlines2)
+        clusters2 = remove_clusters_by_size(cluster_map2, rm_small_clusters)
+        qb_centroids2 = [cluster.centroid for cluster in clusters2]
 
     slr = StreamlineLinearRegistration(x0='affine')
 
@@ -46,7 +77,7 @@ def whole_brain_registration(streamlines1, streamlines2,
 
     moved_streamlines2 = slm.transform(streamlines2)
 
-    return moved_streamlines2, slm.matrix, qb1, qb2
+    return moved_streamlines2, slm.matrix, qb_centroids1, qb_centroids2
 
 
 def find_bundle(model_bundle_moved, streamlines2, strategy='A', min_thr=10):
@@ -89,11 +120,9 @@ class ExtractBundles():
     def extract(self, streamlines, model_streamlines, model_bundle):
 
         ret = whole_brain_registration(streamlines, model_streamlines)
-        moved_model_streams, mat, qb_model_streamlines, qb_streamlines = ret
+        moved_model_streams, mat = ret
 
         self.moved_model_streamlines = moved_model_streams
-        self.qb_model_streamlines = qb_model_streamlines
-        self.qb_streamlines = qb_streamlines
 
         moved_model_bundle = transform_streamlines(model_bundle, mat)
         self.moved_model_bundle = moved_model_bundle
