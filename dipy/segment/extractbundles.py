@@ -5,20 +5,8 @@ from dipy.tracking.streamline import (length, transform_streamlines,
                                       set_number_of_points)
 from dipy.tracking.distances import bundles_distances_mdf
 from dipy.segment.quickbundles import QuickBundles as QuickBundles_old
-from dipy.segment.clustering import QuickBundles
+# from dipy.segment.clustering import QuickBundles
 from time import time
-
-
-def remove_clusters_by_size(clusters, min_size=0):
-    sizes = np.array(map(len, clusters))
-    mean_size = sizes.mean()
-    std_size = sizes.std()
-
-    def condition(c):
-        return len(c) >= min_size  # and len(c) >= mean_size - alpha * std_size
-
-    by_size = lambda c: condition(c)
-    return filter(by_size, clusters)
 
 
 def whole_brain_registration(streamlines1, streamlines2,
