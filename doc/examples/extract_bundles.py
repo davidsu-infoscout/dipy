@@ -324,4 +324,4 @@ if __name__ == '__main__':
     colormap = np.random.rand(len(list_of_all), 3)
     colormap[-1] = np.array([1., 0, 0])
 
-    show_clusters_grid_view(list_of_all, colormap))
+    show_clusters_grid_view(list_of_all, colormap)
