@@ -9,9 +9,9 @@ import nibabel.trackvis as tv
 from glob import glob
 from dipy.viz import fvtk
 from time import time
-from copy import deepcopy
-from dipy.segment.extractbundles import whole_brain_registration
-from dipy.tracking.streamline import (transform_streamlines,
+
+from dipy.tracking.streamline import (length,
+                                      transform_streamlines,
                                       set_number_of_points,
                                       select_random_set_of_streamlines)
 from dipy.segment.clustering import QuickBundles
@@ -19,6 +19,7 @@ from dipy.tracking.distances import (bundles_distances_mdf,
                                      bundles_distances_mam)
 from itertools import chain, izip
 from dipy.align.streamlinear import StreamlineLinearRegistration
+from dipy.viz.axycolor import distinguishable_colormap
 from os import mkdir
 from os.path import isdir
 
@@ -64,6 +65,29 @@ def show_bundles(static, moving, linewidth=0.15, tubes=False,
     fvtk.show(ren, size=(1900, 1200))
     if fname is not None:
         fvtk.record(ren, size=(1900, 1200), out_path=fname)
+
+
+def show_centroids(clusters, colormap=None, cam_pos=None,
+                   cam_focal=None, cam_view=None,
+                   magnification=1, fname=None, size=(900, 900)):
+
+    bg = (1, 1, 1)
+    if colormap is None:
+        colormap = distinguishable_colormap(bg=bg)
+
+    ren = fvtk.ren()
+    ren.SetBackground(*bg)
+
+    max_cz = np.max(map(len, clusters))
+    for cluster, color in izip(clusters, colormap):
+            fvtk.add(ren, fvtk.line(cluster.centroid,
+                                    color, linewidth=len(cluster)*10./float(max_cz)))
+
+    fvtk.show(ren, size=size)
+    if fname is not None:
+        fvtk.record(ren, cam_pos=cam_pos, cam_focal=cam_focal, cam_view=cam_view,
+                    out_path=fname, path_numbering=False, n_frames=1, az_ang=10,
+                    magnification=magnification, size=size, verbose=True)
 
 
 def get_bounding_box(streamlines):
@@ -128,6 +152,72 @@ def show_clusters_grid_view(clusters, colormap=None, makelabel=None,
     fvtk.show(ren, size=size)
 
 
+def remove_clusters_by_size(clusters, min_size=0):
+    #sizes = np.array(map(len, clusters))
+    #mean_size = sizes.mean()
+    #std_size = sizes.std()
+
+    by_size = lambda c: len(c) >= min_size
+    #and len(c) >= mean_size - alpha * std_size
+
+    # filter returns a list of clusters
+    return filter(by_size, clusters)
+
+
+def whole_brain_registration(streamlines1, streamlines2,
+                             rm_small_clusters=50,
+                             maxiter=100,
+                             verbose=False):
+
+    if verbose:
+        print(len(streamlines1))
+        print(len(streamlines2))
+
+    def check_range(streamline, gt=50, lt=250):
+        if (length(s) > gt) & (length(s) < lt):
+            return True
+
+    streamlines1 = [s for s in streamlines1 if check_range(s)]
+    streamlines2 = [s for s in streamlines2 if check_range(s)]
+
+    if verbose:
+        print(len(streamlines1))
+        print(len(streamlines2))
+
+    rstreamlines1 = set_number_of_points(streamlines1, 20)
+    qb1 = QuickBundles(threshold=15)
+    cluster_map1 = qb1.cluster(rstreamlines1)
+    clusters1 = remove_clusters_by_size(cluster_map1, rm_small_clusters)
+    qb_centroids1 = [cluster.centroid for cluster in clusters1]
+
+    rstreamlines2 = set_number_of_points(streamlines2, 20)
+    qb2 = QuickBundles(threshold=15)
+    cluster_map2 = qb2.cluster(rstreamlines2)
+    clusters2 = remove_clusters_by_size(cluster_map2, rm_small_clusters)
+    qb_centroids2 = [cluster.centroid for cluster in clusters2]
+
+    slr = StreamlineLinearRegistration(x0='affine',
+                                       options={'maxiter': maxiter})
+
+    t = time()
+
+    slm = slr.optimize(qb_centroids1, qb_centroids2)
+
+    if verbose:
+        print('QB1 %d' % len(qb_centroids1,))
+        print('QB2 %d' % len(qb_centroids2,))
+
+    duration = time() - t
+    if verbose:
+        print('SAR done in  %f seconds.' % (duration, ))
+
+    print('SAR iterations: %d .' % (slm.iterations, ))
+
+    moved_streamlines2 = slm.transform(streamlines2)
+
+    return moved_streamlines2, slm.matrix, qb_centroids1, qb_centroids2
+
+
 def janice_next_subject(dname_whole_streamlines, verbose=False):
 
     for wb_trk2 in glob(dname_whole_streamlines + '*.trk'):
@@ -145,9 +235,21 @@ def janice_next_subject(dname_whole_streamlines, verbose=False):
         yield (wb2, tag)
 
 
+def janice_manual(tag, dname_model_bundles, mat=None):
+    trk = dname_model_bundles + \
+        tag + '/tracts/IFOF_R/' + tag + '_IFOF_R_GP.trk'
+    print('Reading ' + trk)
+    streamlines, _ = read_trk(trk)
+
+    if mat is not None:
+        return transform_streamlines(streamlines, mat)
+    return streamlines
+
+
 def auto_extract(model_bundle, streamlines,
                  close_centroids_thr=20,
                  clean_thr=7.,
+                 local_slr=True,
                  disp=False, verbose=True):
 
     if verbose:
@@ -198,32 +300,40 @@ def auto_extract(model_bundle, streamlines,
     if disp:
         show_bundles(model_bundle, close_streamlines)
 
-    if verbose:
-        print('# Use SLR to match the model_bundle with the close_streamlines')
+    if local_slr:
 
-    t = time()
+        if verbose:
+            print('# Use SLR to match the model_bundle with the close_streamlines')
 
-    x0 = np.array([0, 0, 0, 0, 0, 0, 1.])
-    bounds = [(-30, 30), (-30, 30), (-30, 30),
-              (-45, 45), (-45, 45), (-45, 45), (0.5, 1.5)]
+        t = time()
 
-    slr = StreamlineLinearRegistration(x0=x0, bounds=bounds)
+        x0 = np.array([0, 0, 0, 0, 0, 0, 1.])
+        bounds = [(-30, 30), (-30, 30), (-30, 30),
+                  (-45, 45), (-45, 45), (-45, 45), (0.5, 1.5)]
 
-    static = select_random_set_of_streamlines(model_bundle, 400)
-    moving = select_random_set_of_streamlines(close_streamlines, 600)
+        slr = StreamlineLinearRegistration(x0=x0, bounds=bounds)
 
-    static = set_number_of_points(static, 20)
-    moving = set_number_of_points(moving, 20)
+        static = select_random_set_of_streamlines(model_bundle, 400)
+        moving = select_random_set_of_streamlines(close_streamlines, 600)
 
-    slm = slr.optimize(static, moving)
+        static = set_number_of_points(static, 20)
+        moving = set_number_of_points(moving, 20)
 
-    closer_streamlines = transform_streamlines(close_streamlines, slm.matrix)
+        slm = slr.optimize(static, moving)
 
-    if verbose:
-        print('Duration %f ' % (time() - t, ))
+        closer_streamlines = transform_streamlines(close_streamlines,
+                                                   slm.matrix)
 
-    if disp:
-        show_bundles(model_bundle, closer_streamlines)
+        if verbose:
+            print('Duration %f ' % (time() - t, ))
+
+        if disp:
+            show_bundles(model_bundle, closer_streamlines)
+
+        matrix = slm.matrix
+    else:
+        closer_streamlines = close_streamlines
+        matrix = np.eye(4)
 
     if verbose:
         print('# Remove unrelated bundles and expand')
@@ -248,7 +358,7 @@ def auto_extract(model_bundle, streamlines,
     if disp:
         show_bundles(model_bundle, close_clusters_clean)
 
-    return close_clusters_clean
+    return close_clusters_clean, matrix
 
 
 if __name__ == '__main__':
@@ -291,32 +401,46 @@ if __name__ == '__main__':
         print('# Affine registration')
         t = time()
 
-        ret = whole_brain_registration(model_streamlines, streamlines)
+        ret = whole_brain_registration(model_streamlines, streamlines,
+                                       maxiter=150)
         moved_streamlines, mat, centroids1, centroids2 = ret
 
         print('Duration %f ' % (time() - t, ))
-        write_trk(tag + '_moved_streamlines.trk', moved_streamlines, hdr=hdr)
 
-        #show_bundles(model_streamlines, streamlines[:1000], opacity=0.1)
-        #show_bundles(model_streamlines, moved_streamlines[:1000], opacity=0.1)
+        #write_trk(tag + '_moved_streamlines.trk', moved_streamlines, hdr=hdr)
 
         #show_bundles(centroids1, centroids2)
         #show_bundles(centroids1, transform_streamlines(centroids2, mat))
 
-        close_clusters_clean = auto_extract(model_bundle, streamlines,
-                                            close_centroids_thr=20,
-                                            clean_thr=7.,
-                                            disp=False, verbose=True)
+        close_clusters_clean, mat2 = auto_extract(model_bundle, streamlines,
+                                                  close_centroids_thr=20,
+                                                  clean_thr=10.,
+                                                  local_slr=False,
+                                                  disp=False, verbose=True)
 
         result_trk = results_dir + tag + '_close_clusters_clean.trk'
+
         print('Writing ' + result_trk)
+
         write_trk(result_trk, close_clusters_clean, hdr=hdr)
+
+        manual = janice_manual(tag, dname_model_bundles,
+                               mat=None)
+
+        slr = StreamlineLinearRegistration(x0='rigid')
+        slm = slr.optimize(set_number_of_points(close_clusters_clean, 20),
+                           set_number_of_points(manual, 20))
+
+        manual_in_model = slm.transform(manual)
+
+        show_bundles(manual, close_clusters_clean)
+
         print
 
         list_of_all.append(close_clusters_clean)
 
         i += 1
-        if i > 5:
+        if i == 2:
             break
 
     list_of_all.append(model_bundle)
