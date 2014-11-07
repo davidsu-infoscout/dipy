@@ -307,7 +307,9 @@ def bundle_adjacency(dtracks0, dtracks1, threshold):
             solo2.append(dtracks1[i])
 
     pair21 = np.array(pair21)
-    res = 0.5*(len(pair12)/np.float(len(dtracks0))+len(pair21)/np.float(len(dtracks1)))
+    A = len(pair12) / np.float(len(dtracks0))
+    B = len(pair21) / np.float(len(dtracks1))
+    res = 0.5 * (A + B)
     return res
 
 
@@ -433,15 +435,17 @@ def auto_extract(model_bundle, moved_streamlines,
     return close_clusters_clean, matrix
 
 
-if __name__ == '__main__':
+def exp_validation_with_janice(model_tag='t0337',
+                               bundle_type='IFOF_R',
+                               close_centroids_thr=20,
+                               clean_thr=5.,
+                               local_slr=True,
+                               verbose=True,
+                               disp=False):
 
     # Read Janice's model streamlines
-
-    verbose = True
-    disp = False
-
-    model_tag = 't0337'  # 't0253'
-    bundle_type = 'UNC_R'  # 'IFOF_R'
+    model_tag = model_tag  # 't0253'
+    bundle_type = bundle_type  # 'IFOF_R'
     print(model_tag)
 
     ret = janice_initial(model_tag, bundle_type)
@@ -473,9 +477,9 @@ if __name__ == '__main__':
         #show_bundles(centroids1, transform_streamlines(centroids2, mat))
 
         extracted, mat2 = auto_extract(model_bundle, moved_streamlines,
-                                       close_centroids_thr=20,
-                                       clean_thr=5.,
-                                       local_slr=True,
+                                       close_centroids_thr=close_centroids_thr,
+                                       clean_thr=clean_thr,
+                                       local_slr=local_slr,
                                        disp=disp, verbose=verbose)
 
         result_trk = results_dir + tag + '_extracted.trk'
@@ -517,3 +521,17 @@ if __name__ == '__main__':
 
     colormap2 = np.random.rand(len(list_of_m_vs_e), 3)
     show_clusters_grid_view(list_of_m_vs_e, colormap2)
+
+    return bas
+
+
+if __name__ == '__main__':
+
+    bas = exp_validation_with_janice(model_tag='t0337',
+                                     bundle_type='UNC_R',
+                                     close_centroids_thr=20,
+                                     clean_thr=5.,
+                                     local_slr=True,
+                                     verbose=True,
+                                     disp=False)
+    plot(bas, 'o')
