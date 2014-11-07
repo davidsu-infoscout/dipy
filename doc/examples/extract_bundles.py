@@ -235,15 +235,72 @@ def janice_next_subject(dname_whole_streamlines, verbose=False):
         yield (wb2, tag)
 
 
-def janice_manual(tag, dname_model_bundles, mat=None):
+def janice_manual(tag, dname_model_bundles):
     trk = dname_model_bundles + \
         tag + '/tracts/IFOF_R/' + tag + '_IFOF_R_GP.trk'
     print('Reading ' + trk)
     streamlines, _ = read_trk(trk)
 
-    if mat is not None:
-        return transform_streamlines(streamlines, mat)
     return streamlines
+
+
+def janice_initial(model_tag):
+
+    initial_dir = '/home/eleftherios/Data/Hackethon_bdx/'
+
+    dname_model_bundles = initial_dir + 'bordeaux_tracts_and_stems/'
+
+    model_bundle_trk = dname_model_bundles + \
+        model_tag + '/tracts/IFOF_R/' + model_tag + '_IFOF_R_GP.trk'
+
+    model_bundle, _ = read_trk(model_bundle_trk)
+
+    dname_whole_brain = initial_dir + \
+        'bordeaux_whole_brain_DTI/whole_brain_trks_60sj/'
+
+    model_streamlines_trk = dname_whole_brain + \
+        't0337_dti_mean02_fact-45_splined.trk'
+
+    model_streamlines, hdr = read_trk(model_streamlines_trk)
+
+    results_dir = initial_dir + 'results_' + model_tag + '/'
+
+    if not isdir(results_dir):
+        mkdir(results_dir)
+
+    ret = initial_dir, results_dir, dname_model_bundles, \
+            dname_whole_brain, model_bundle, model_streamlines, hdr
+
+    return ret
+
+
+def bundle_adjacency(dtracks0, dtracks1, threshold):
+    #d01 = distance_matrix(MinimumAverageDirectFlipMetric(), dtracks0, dtracks1)
+    d01=bundles_distances_mdf(dtracks0,dtracks1)
+
+    pair12=[]
+    solo1=[]
+
+    for i in range(len(dtracks0)):
+        if np.min(d01[i,:]) < threshold:
+            j=np.argmin(d01[i,:])
+            pair12.append((i,j))
+        else:
+            solo1.append(dtracks0[i])
+
+    pair12=np.array(pair12)
+    pair21=[]
+
+    solo2=[]
+    for i in range(len(dtracks1)):
+        if np.min(d01[:,i]) < threshold:
+            j=np.argmin(d01[:,i])
+            pair21.append((i,j))
+        else:
+            solo2.append(dtracks1[i])
+
+    pair21=np.array(pair21)
+    return 0.5*(len(pair12)/np.float(len(dtracks0))+len(pair21)/np.float(len(dtracks1)))
 
 
 def auto_extract(model_bundle, moved_streamlines,
@@ -376,37 +433,20 @@ if __name__ == '__main__':
     disp = False
 
     model_tag = 't0337'
-
-    initial_dir = '/home/eleftherios/Data/Hackethon_bdx/'
-
-    dname_model_bundles = initial_dir + 'bordeaux_tracts_and_stems/'
-
-    model_bundle_trk = dname_model_bundles + \
-        model_tag + '/tracts/IFOF_R/' + model_tag + '_IFOF_R_GP.trk'
-
-    model_bundle, _ = read_trk(model_bundle_trk)
-
-    dname_whole_brain = initial_dir + \
-        'bordeaux_whole_brain_DTI/whole_brain_trks_60sj/'
-
-    model_streamlines_trk = dname_whole_brain + \
-        't0337_dti_mean02_fact-45_splined.trk'
-
-    model_streamlines, hdr = read_trk(model_streamlines_trk)
-
-    results_dir = initial_dir + 'results_' + model_tag + '/'
-
-    if not isdir(results_dir):
-        mkdir(results_dir)
-
     print(model_tag)
+
+    ret = janice_initial(model_tag)
+
+    initial_dir, results_dir, model_bundles_dir, whole_brain_dir, \
+        model_bundle, model_streamlines, hdr = ret
 
     list_of_all = []
     list_of_m_vs_e = []
+    bas = []
 
     i = 0
 
-    for (streamlines, tag) in janice_next_subject(dname_whole_brain):
+    for (streamlines, tag) in janice_next_subject(whole_brain_dir):
 
         print(tag)
         print('# Affine registration')
@@ -435,8 +475,7 @@ if __name__ == '__main__':
 
         write_trk(result_trk, close_clusters_clean, hdr=hdr)
 
-        manual = janice_manual(tag, dname_model_bundles,
-                               mat=None)
+        manual = janice_manual(tag, model_bundles_dir)
 
         manual_in_model = transform_streamlines(manual,
                                                 np.dot(mat2, mat))
@@ -444,11 +483,18 @@ if __name__ == '__main__':
         if disp:
             show_bundles(manual_in_model, close_clusters_clean)
 
-        print
-
         list_of_all.append(close_clusters_clean)
+
         list_of_m_vs_e.append(close_clusters_clean)
         list_of_m_vs_e.append(manual_in_model)
+
+
+        ba = bundle_adjacency(set_number_of_points(manual_in_model),
+                              set_number_of_points(close_clusters_clean), 0.5)
+        bas.append(ba)
+
+        print ('BA : %f ' % (ba, ))
+        print
 
         i += 1
         if i == 5:
