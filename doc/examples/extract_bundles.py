@@ -235,72 +235,80 @@ def janice_next_subject(dname_whole_streamlines, verbose=False):
         yield (wb2, tag)
 
 
-def janice_manual(tag, dname_model_bundles):
-    trk = dname_model_bundles + \
-        tag + '/tracts/IFOF_R/' + tag + '_IFOF_R_GP.trk'
+def janice_manual(tag, bundle_type, dname_model_bundles):
+    trk = dname_model_bundles + tag + '/tracts/' + \
+        bundle_type + '/' + tag + '_' + bundle_type + '_GP.trk'
     print('Reading ' + trk)
     streamlines, _ = read_trk(trk)
 
     return streamlines
 
 
-def janice_initial(model_tag):
+def janice_initial(model_tag='t0337', bundle_type='IFOF_R'):
 
     initial_dir = '/home/eleftherios/Data/Hackethon_bdx/'
 
     dname_model_bundles = initial_dir + 'bordeaux_tracts_and_stems/'
 
     model_bundle_trk = dname_model_bundles + \
-        model_tag + '/tracts/IFOF_R/' + model_tag + '_IFOF_R_GP.trk'
+        model_tag + '/tracts/' + bundle_type + '/' + \
+        model_tag + '_' + bundle_type + '_GP.trk'
 
     model_bundle, _ = read_trk(model_bundle_trk)
 
     dname_whole_brain = initial_dir + \
         'bordeaux_whole_brain_DTI/whole_brain_trks_60sj/'
 
-    model_streamlines_trk = dname_whole_brain + \
-        't0337_dti_mean02_fact-45_splined.trk'
+    if model_tag in ['t0336', 't0337', 't0340', 't0364']:
+        model_streamlines_trk = dname_whole_brain + \
+            model_tag + '_dti_mean02_fact-45_splined.trk'
+    else:
+        model_streamlines_trk = dname_whole_brain + \
+            model_tag + '_dti_mean02_fact_45.trk'
 
     model_streamlines, hdr = read_trk(model_streamlines_trk)
 
-    results_dir = initial_dir + 'results_' + model_tag + '/'
+    results_dir = initial_dir + 'results_' + \
+        model_tag + '_' + bundle_type + '/'
 
     if not isdir(results_dir):
         mkdir(results_dir)
 
     ret = initial_dir, results_dir, dname_model_bundles, \
-            dname_whole_brain, model_bundle, model_streamlines, hdr
+        dname_whole_brain, model_bundle, model_streamlines, hdr
 
     return ret
 
 
 def bundle_adjacency(dtracks0, dtracks1, threshold):
-    #d01 = distance_matrix(MinimumAverageDirectFlipMetric(), dtracks0, dtracks1)
-    d01=bundles_distances_mdf(dtracks0,dtracks1)
+    # d01 = distance_matrix(MinimumAverageDirectFlipMetric(),
+    #                       dtracks0, dtracks1)
+    d01 = bundles_distances_mdf(dtracks0, dtracks1)
 
-    pair12=[]
-    solo1=[]
+    pair12 = []
+    solo1 = []
 
     for i in range(len(dtracks0)):
-        if np.min(d01[i,:]) < threshold:
-            j=np.argmin(d01[i,:])
-            pair12.append((i,j))
+        if np.min(d01[i, :]) < threshold:
+            j = np.argmin(d01[i, :])
+            pair12.append((i, j))
         else:
             solo1.append(dtracks0[i])
 
-    pair12=np.array(pair12)
-    pair21=[]
+    pair12 = np.array(pair12)
+    pair21 = []
 
-    solo2=[]
+    solo2 = []
     for i in range(len(dtracks1)):
-        if np.min(d01[:,i]) < threshold:
-            j=np.argmin(d01[:,i])
-            pair21.append((i,j))
+        if np.min(d01[:, i]) < threshold:
+            j = np.argmin(d01[:, i])
+            pair21.append((i, j))
         else:
             solo2.append(dtracks1[i])
 
-    pair21=np.array(pair21)
-    return 0.5*(len(pair12)/np.float(len(dtracks0))+len(pair21)/np.float(len(dtracks1)))
+    pair21 = np.array(pair21)
+    res = 0.5*(len(pair12)/np.float(len(dtracks0))+len(pair21)/np.float(len(dtracks1)))
+    return res
 
 
 def auto_extract(model_bundle, moved_streamlines,
@@ -365,7 +373,7 @@ def auto_extract(model_bundle, moved_streamlines,
     if local_slr:
 
         if verbose:
-            print('# Use SLR to match the model_bundle with the close_streamlines')
+            print('# Local SLR of close_streamlines to model')
 
         t = time()
 
@@ -432,10 +440,11 @@ if __name__ == '__main__':
     verbose = True
     disp = False
 
-    model_tag = 't0337'
+    model_tag = 't0337'  # 't0253'
+    bundle_type = 'UNC_R'  # 'IFOF_R'
     print(model_tag)
 
-    ret = janice_initial(model_tag)
+    ret = janice_initial(model_tag, bundle_type)
 
     initial_dir, results_dir, model_bundles_dir, whole_brain_dir, \
         model_bundle, model_streamlines, hdr = ret
@@ -463,34 +472,33 @@ if __name__ == '__main__':
         #show_bundles(centroids1, centroids2)
         #show_bundles(centroids1, transform_streamlines(centroids2, mat))
 
-        close_clusters_clean, mat2 = auto_extract(model_bundle, moved_streamlines,
-                                                  close_centroids_thr=20,
-                                                  clean_thr=5.,
-                                                  local_slr=True,
-                                                  disp=disp, verbose=verbose)
+        extracted, mat2 = auto_extract(model_bundle, moved_streamlines,
+                                       close_centroids_thr=20,
+                                       clean_thr=5.,
+                                       local_slr=True,
+                                       disp=disp, verbose=verbose)
 
-        result_trk = results_dir + tag + '_close_clusters_clean.trk'
+        result_trk = results_dir + tag + '_extracted.trk'
 
         print('Writing ' + result_trk)
 
-        write_trk(result_trk, close_clusters_clean, hdr=hdr)
+        write_trk(result_trk, extracted, hdr=hdr)
 
-        manual = janice_manual(tag, model_bundles_dir)
+        manual = janice_manual(tag, bundle_type, model_bundles_dir)
 
         manual_in_model = transform_streamlines(manual,
                                                 np.dot(mat2, mat))
 
         if disp:
-            show_bundles(manual_in_model, close_clusters_clean)
+            show_bundles(manual_in_model, extracted)
 
-        list_of_all.append(close_clusters_clean)
+        list_of_all.append(extracted)
 
-        list_of_m_vs_e.append(close_clusters_clean)
+        list_of_m_vs_e.append(extracted)
         list_of_m_vs_e.append(manual_in_model)
 
-
         ba = bundle_adjacency(set_number_of_points(manual_in_model),
-                              set_number_of_points(close_clusters_clean), 0.5)
+                              set_number_of_points(extracted), 0.5)
         bas.append(ba)
 
         print ('BA : %f ' % (ba, ))
@@ -509,4 +517,3 @@ if __name__ == '__main__':
 
     colormap2 = np.random.rand(len(list_of_m_vs_e), 3)
     show_clusters_grid_view(list_of_m_vs_e, colormap2)
-
