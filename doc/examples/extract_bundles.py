@@ -22,7 +22,8 @@ from dipy.align.streamlinear import StreamlineLinearRegistration
 from dipy.viz.axycolor import distinguishable_colormap
 from os import mkdir
 from os.path import isdir
-
+import os
+from dipy.io.pickles import load_pickle, save_pickle
 
 def read_trk(fname):
     streams, hdr = tv.read(fname, points_space='rasmm')
@@ -132,6 +133,7 @@ def show_clusters_grid_view(clusters, colormap=None, makelabel=None,
 
     width, height, depth = box_max - box_min
     text_scale = [height*0.1] * 3
+    cnt = 0
     for cluster, color, pos in izip(clusters, colormap, positions):
         offset = pos * (box_max - box_min)
         offset[0] += pos[0] * 4*text_scale[0]
@@ -141,7 +143,8 @@ def show_clusters_grid_view(clusters, colormap=None, makelabel=None,
                                 [color]*len(cluster)))
 
         if makelabel is not None:
-            label = makelabel(cluster)
+            #label = makelabel(cluster)
+            label = makelabel[cnt]
             #text_scale = tuple([scale / 50.] * 3)
             text_pos = offset + np.array([0, height+4*text_scale[1], depth])/2.
             text_pos[0] -= len(label) / 2. * text_scale[0]
@@ -149,6 +152,7 @@ def show_clusters_grid_view(clusters, colormap=None, makelabel=None,
             fvtk.label(ren, text=label, pos=text_pos, scale=text_scale,
                        color=(0, 0, 0))
 
+        cnt += 1
     fvtk.show(ren, size=size)
 
 
@@ -167,6 +171,7 @@ def remove_clusters_by_size(clusters, min_size=0):
 def whole_brain_registration(streamlines1, streamlines2,
                              rm_small_clusters=50,
                              maxiter=100,
+                             select_random=None,
                              verbose=False):
 
     if verbose:
@@ -184,13 +189,25 @@ def whole_brain_registration(streamlines1, streamlines2,
         print(len(streamlines1))
         print(len(streamlines2))
 
-    rstreamlines1 = set_number_of_points(streamlines1, 20)
+    if select_random is not None:
+        rstreamlines1 = select_random_set_of_streamlines(streamlines1,
+                                                         select_random)
+    else:
+        rstreamlines1 = streamlines1
+
+    rstreamlines1 = set_number_of_points(rstreamlines1, 20)
     qb1 = QuickBundles(threshold=15)
     cluster_map1 = qb1.cluster(rstreamlines1)
     clusters1 = remove_clusters_by_size(cluster_map1, rm_small_clusters)
     qb_centroids1 = [cluster.centroid for cluster in clusters1]
 
-    rstreamlines2 = set_number_of_points(streamlines2, 20)
+    if select_random is not None:
+        rstreamlines2 = select_random_set_of_streamlines(streamlines2,
+                                                         select_random)
+    else:
+        rstreamlines2 = streamlines2
+
+    rstreamlines2 = set_number_of_points(rstreamlines2, 20)
     qb2 = QuickBundles(threshold=15)
     cluster_map2 = qb2.cluster(rstreamlines2)
     clusters2 = remove_clusters_by_size(cluster_map2, rm_small_clusters)
@@ -525,13 +542,115 @@ def exp_validation_with_janice(model_tag='t0337',
     return bas
 
 
+def exp_fancy_data(model_tag='Renauld',
+                   bundle_type='cst.right',
+                   close_centroids_thr=20,
+                   clean_thr=5.,
+                   local_slr=True,
+                   verbose=True,
+                   disp=False):
+
+
+    dname = '/home/eleftherios/Data/fancy_data/'
+    #2013_07_15_Alexandra/TRK_files/bundles_cst.right.trk'
+    for model_dir in glob(dname + '*' + model_tag):
+        model_streamlines, hdr = read_trk(model_dir + '/streamlines_500K.trk')
+        model_bundle, hdr = read_trk(model_dir + '/TRK_files/bundles_' + bundle_type + '.trk')
+
+    group = ['Girard'] #, 'Vanier', 'Delattre', 'Aubin', 'Butler2']
+    #team_B = ['Renauld', 'St-Jean', 'Owji', 'Castonguay', 'Marcil']
+
+    print(model_tag)
+
+    list_of_all = []
+    list_of_all_labels = []
+    list_of_m_vs_e = []
+    list_of_m_vs_e_labels = []
+
+    for subj in group:
+
+        print(subj)
+
+        for subj_dir in glob(dname + '*' + subj):
+            streamlines, hdr = read_trk(subj_dir + '/streamlines_500K.trk')
+            manual_bundle, hdr = read_trk(subj_dir + '/TRK_files/bundles_' + bundle_type + '.trk')
+
+            ret = whole_brain_registration(model_streamlines, streamlines,
+                                           maxiter=150, select_random=50000, verbose=verbose)
+            moved_streamlines, mat, centroids1, centroids2 = ret
+
+            # print('Duration %f ' % (time() - t, ))
+
+            extracted, mat2 = auto_extract(model_bundle, moved_streamlines,
+                                           close_centroids_thr=close_centroids_thr,
+                                           clean_thr=clean_thr,
+                                           local_slr=local_slr,
+                                           disp=disp, verbose=verbose)
+
+            #show_bundles(model_bundle, extracted)
+
+            manual_bundle_in_model = transform_streamlines(manual_bundle, np.dot(mat2, mat))
+            #show_bundles(manual_bundle_in_model, extracted)
+
+            list_of_all.append(extracted)
+            list_of_all_labels.append('E')
+
+            list_of_m_vs_e.append(extracted)
+            list_of_m_vs_e_labels.append('E')
+
+            list_of_m_vs_e.append(manual_bundle_in_model)
+            list_of_m_vs_e_labels.append('MA')
+
+    list_of_all.append(model_bundle)
+    list_of_all_labels.append('M')
+
+    colormap = np.random.rand(len(list_of_all), 3)
+    colormap[-1] = np.array([1., 0, 0])
+
+    show_clusters_grid_view(list_of_all, colormap, list_of_all_labels)
+
+    colormap2 = np.random.rand(len(list_of_m_vs_e), 3)
+    show_clusters_grid_view(list_of_m_vs_e, colormap2, list_of_m_vs_e_labels)
+
+    save_pickle(bundle_type + 'list_of_all.pkl', list_of_all)
+    save_pickle(bundle_type + 'list_of_m_vs_e.pkl', list_of_m_vs_e)
+    save_pickle(bundle_type + 'list_of_all_labels.pkl', list_of_all_labels)
+    save_pickle(bundle_type + 'list_of_m_vs_e_labels.pkl', list_of_m_vs_e_labels)
+
+
+def show_fancy_data_results(bundle_type):
+
+    list_of_all = load_pickle(bundle_type + 'list_of_all.pkl')
+    list_of_m_vs_e = load_pickle(bundle_type + 'list_of_m_vs_e.pkl', )
+    list_of_all_labels = load_pickle(bundle_type + 'list_of_all_labels.pkl')
+    list_of_m_vs_e_labels = load_pickle(bundle_type + 'list_of_m_vs_e_labels.pkl')
+
+    colormap = np.random.rand(len(list_of_all), 3)
+    colormap[-1] = np.array([1., 0, 0])
+
+    show_clusters_grid_view(list_of_all, colormap, list_of_all_labels)
+
+    colormap2 = np.random.rand(len(list_of_m_vs_e), 3)
+    show_clusters_grid_view(list_of_m_vs_e, colormap2, list_of_m_vs_e_labels)
+
+
 if __name__ == '__main__':
 
-    bas = exp_validation_with_janice(model_tag='t0337',
-                                     bundle_type='UNC_R',
-                                     close_centroids_thr=20,
-                                     clean_thr=5.,
-                                     local_slr=True,
-                                     verbose=True,
-                                     disp=False)
-    plot(bas, 'o')
+#    bas = exp_validation_with_janice(model_tag='t0337',
+#                                     bundle_type='UNC_R',
+#                                     close_centroids_thr=20,
+#                                     clean_thr=5.,
+#                                     local_slr=True,
+#                                     verbose=True,
+#                                     disp=False)
+#    plot(bas, 'o')
+
+
+    bas = exp_fancy_data(model_tag='Renauld',
+                         bundle_type='cst.right',
+                         close_centroids_thr=20,
+                         clean_thr=5.,
+                         local_slr=True,
+                         verbose=True,
+                         disp=False)
+
