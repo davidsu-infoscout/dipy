@@ -5,6 +5,7 @@ Automatic bundle extraction
 """
 import numpy as np
 from os.path import basename
+import nibabel as nib
 import nibabel.trackvis as tv
 from glob import glob
 from dipy.viz import fvtk
@@ -179,8 +180,11 @@ def whole_brain_registration(streamlines1, streamlines2,
         print(len(streamlines2))
 
     def check_range(streamline, gt=50, lt=250):
-        if (length(s) > gt) & (length(s) < lt):
+
+        if (length(streamline) > gt) & (length(streamline) < lt):
             return True
+        else:
+            return False
 
     streamlines1 = [s for s in streamlines1 if check_range(s)]
     streamlines2 = [s for s in streamlines2 if check_range(s)]
@@ -197,6 +201,7 @@ def whole_brain_registration(streamlines1, streamlines2,
 
     rstreamlines1 = set_number_of_points(rstreamlines1, 20)
     qb1 = QuickBundles(threshold=15)
+    rstreamlines1 = [s.astype('f4') for s in rstreamlines1]
     cluster_map1 = qb1.cluster(rstreamlines1)
     clusters1 = remove_clusters_by_size(cluster_map1, rm_small_clusters)
     qb_centroids1 = [cluster.centroid for cluster in clusters1]
@@ -209,6 +214,7 @@ def whole_brain_registration(streamlines1, streamlines2,
 
     rstreamlines2 = set_number_of_points(rstreamlines2, 20)
     qb2 = QuickBundles(threshold=15)
+    rstreamlines2 = [s.astype('f4') for s in rstreamlines2]
     cluster_map2 = qb2.cluster(rstreamlines2)
     clusters2 = remove_clusters_by_size(cluster_map2, rm_small_clusters)
     qb_centroids2 = [cluster.centroid for cluster in clusters2]
@@ -334,7 +340,7 @@ def auto_extract(model_bundle, moved_streamlines,
                  close_centroids_thr=20,
                  clean_thr=7.,
                  local_slr=True,
-                 disp=False, verbose=True):
+                 disp=False, verbose=True, expand_thr=None):
 
     if verbose:
         print('# Centroids of model bundle')
@@ -448,6 +454,18 @@ def auto_extract(model_bundle, moved_streamlines,
     print(msg % (time() - t0, ))
     if disp:
         show_bundles(model_bundle, close_clusters_clean)
+
+    if expand_thr is not None:
+        rclose_clusters_clean = set_number_of_points(close_clusters_clean, 20)
+        expand_matrix = bundles_distances_mam(rclose_clusters_clean,
+                                              rcloser_streamlines)
+
+        expand_matrix[expand_matrix > expand_thr] = np.inf
+        mins = np.min(expand_matrix, axis=0)
+        expanded = [closer_streamlines[i]
+                    for i in np.where(mins != np.inf)[0]]
+
+        return expanded, matrix
 
     return close_clusters_clean, matrix
 
@@ -572,6 +590,7 @@ def exp_fancy_data(model_tag='Renauld',
         print(subj)
 
         for subj_dir in glob(dname + '*' + subj):
+
             streamlines, hdr = read_trk(subj_dir + '/streamlines_500K.trk')
             manual_bundle, hdr = read_trk(subj_dir + '/TRK_files/bundles_' + bundle_type + '.trk')
 
@@ -634,6 +653,99 @@ def show_fancy_data_results(bundle_type):
     show_clusters_grid_view(list_of_m_vs_e, colormap2, list_of_m_vs_e_labels)
 
 
+def get_camilles_bundles(bundle_type='all'):
+
+    dname = '/home/eleftherios/bundle_paper/data/faisceaux/'
+
+    ffa = '/home/eleftherios/Data/MPI_Elef/fa_1x1x1.nii.gz'
+
+    affine = nib.load(ffa).get_affine()
+
+    bundle_names = ['CC_front', 'CC_middle', 'CC_back', \
+                    'cingulum_left', 'cingulum_right', \
+                    'CST_left', 'CST_right', \
+                    'IFO_left', 'IFO_right', \
+                    'ILF_left', 'ILF_right',
+                    'SCP_left', 'SCP_right', \
+                    'SLF_left', 'SLF_right', \
+                    'uncinate_left', 'uncinate_right']
+
+    if bundle_type == 'all':
+
+        streamlines = []
+        for b in bundle_names:
+            streams, hdr = tv.read(dname + b + '.trk')
+            bundle = [b[0] for b in streams]
+            bundle = transform_streamlines(bundle, affine)
+            streamlines += bundle
+
+        return streamlines
+
+    else:
+        streams, hdr = tv.read(dname + bundle_type + '.trk')
+        bundle = [b[0] for b in streams]
+        bundle = transform_streamlines(bundle, affine)
+        return bundle
+
+
+def exp_tumor_data(model_tag,
+                   bundle_type,
+                   close_centroids_thr=20,
+                   clean_thr=5.,
+                   local_slr=True,
+                   verbose=True,
+                   disp=False,
+                   expand_thr=None):
+
+    #model_streamlines = get_camilles_bundles('all')
+    #model_bundle = get_camilles_bundles('CST_left')
+
+    dname = '/home/eleftherios/Data/fancy_data/'
+    for model_dir in glob(dname + '*' + model_tag):
+        model_streamlines, hdr = read_trk(model_dir + '/streamlines_500K.trk')
+        model_bundle, hdr = read_trk(model_dir + '/TRK_files/bundles_' + bundle_type + '.trk')
+
+
+    dname = '/home/eleftherios/Data/National_Geographic/forElef/'
+    streamlines, _ = read_trk(dname + 'whole_brain_fa_0.01_mask.trk')
+
+    manual_bundle_left, _ = read_trk(dname + 'CST_tumor_max.trk')
+    manual_bundle_right, _ = read_trk(dname + 'CST_healthy_max.trk')
+
+    # show_bundles(model_streamlines[:5000], streamlines[:5000])
+
+    ret = whole_brain_registration(model_streamlines, streamlines,
+                                   maxiter=150, select_random=50000,
+                                   verbose=verbose)
+    moved_streamlines, mat, centroids1, centroids2 = ret
+
+    # show_bundles(model_streamlines[:5000], moved_streamlines[:5000])
+
+    # print('Duration %f ' % (time() - t, ))
+
+    extracted, mat2 = auto_extract(model_bundle, moved_streamlines,
+                                   close_centroids_thr=close_centroids_thr,
+                                   clean_thr=clean_thr,
+                                   local_slr=local_slr,
+                                   disp=disp, verbose=verbose,
+                                   expand_thr=expand_thr)
+
+    show_bundles(model_bundle, extracted)
+    colormap = np.array([[1, 0, 0.], [0, 1, 0.], [0, 0, 1.]])
+
+    if bundle_type == 'cst.left':
+        manual_bundle = manual_bundle_left
+    if bundle_type == 'cst.right':
+        manual_bundle = manual_bundle_right
+
+    manual_bundle_in_model = transform_streamlines(manual_bundle,
+                                                   np.dot(mat2, mat))
+
+    show_clusters_grid_view([model_bundle, extracted, manual_bundle_in_model],
+                            colormap)
+    1/0
+
+
 if __name__ == '__main__':
 
 #    bas = exp_validation_with_janice(model_tag='t0337',
@@ -646,11 +758,22 @@ if __name__ == '__main__':
 #    plot(bas, 'o')
 
 
-    bas = exp_fancy_data(model_tag='Renauld',
-                         bundle_type='cst.right',
-                         close_centroids_thr=20,
-                         clean_thr=5.,
-                         local_slr=True,
-                         verbose=True,
-                         disp=False)
+#    bas = exp_fancy_data(model_tag='Renauld',
+#                         bundle_type='cst.right',
+#                         close_centroids_thr=20,
+#                         clean_thr=5.,
+#                         local_slr=True,
+#                         verbose=True,
+#                         disp=False)
+
+
+    exp_tumor_data(model_tag='Girard',
+                   bundle_type='cst.left',
+                   close_centroids_thr=20,
+                   clean_thr=5.,
+                   local_slr=True,
+                   verbose=True,
+                   disp=False,
+                   expand_thr=5.)
+
 
