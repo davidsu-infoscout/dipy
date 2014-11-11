@@ -105,7 +105,8 @@ def get_bounding_box(streamlines):
 
 def show_clusters_grid_view(clusters, colormap=None, makelabel=None,
                             cam_pos=None, cam_focal=None, cam_view=None,
-                            magnification=1, fname=None, size=(900, 900)):
+                            magnification=1, fname=None, size=(900, 900),
+                            tubes=False):
 
     def grid_distribution(N):
         def middle_divisors(n):
@@ -140,8 +141,12 @@ def show_clusters_grid_view(clusters, colormap=None, makelabel=None,
         offset[0] += pos[0] * 4*text_scale[0]
         offset[1] += pos[1] * 4*text_scale[1]
 
-        fvtk.add(ren, fvtk.line([s + offset for s in cluster],
-                                [color]*len(cluster)))
+        if tubes:
+            fvtk.add(ren, fvtk.streamtube([s + offset for s in cluster],
+                                          [color]*len(cluster)))
+        else:
+            fvtk.add(ren, fvtk.line([s + offset for s in cluster],
+                                    [color]*len(cluster)))
 
         if makelabel is not None:
             #label = makelabel(cluster)
@@ -149,6 +154,7 @@ def show_clusters_grid_view(clusters, colormap=None, makelabel=None,
             #text_scale = tuple([scale / 50.] * 3)
             text_pos = offset + np.array([0, height+4*text_scale[1], depth])/2.
             text_pos[0] -= len(label) / 2. * text_scale[0]
+
 
             fvtk.label(ren, text=label, pos=text_pos, scale=text_scale,
                        color=(0, 0, 0))
@@ -476,7 +482,11 @@ def exp_validation_with_janice(model_tag='t0337',
                                clean_thr=5.,
                                local_slr=True,
                                verbose=True,
-                               disp=False):
+                               disp=False,
+                               expand_thr=None,
+                               f_extracted=None,
+                               f_manual=None,
+                               f_model=None):
 
     # Read Janice's model streamlines
     model_tag = model_tag  # 't0253'
@@ -490,6 +500,8 @@ def exp_validation_with_janice(model_tag='t0337',
 
     list_of_all = []
     list_of_m_vs_e = []
+    list_of_manual = []
+
     bas = []
 
     i = 0
@@ -515,7 +527,8 @@ def exp_validation_with_janice(model_tag='t0337',
                                        close_centroids_thr=close_centroids_thr,
                                        clean_thr=clean_thr,
                                        local_slr=local_slr,
-                                       disp=disp, verbose=verbose)
+                                       disp=disp, verbose=verbose,
+                                       expand_thr=expand_thr)
 
         result_trk = results_dir + tag + '_extracted.trk'
 
@@ -535,6 +548,8 @@ def exp_validation_with_janice(model_tag='t0337',
 
         list_of_m_vs_e.append(extracted)
         list_of_m_vs_e.append(manual_in_model)
+
+        list_of_manual.append(manual_in_model)
 
         ba = bundle_adjacency(set_number_of_points(manual_in_model),
                               set_number_of_points(extracted), 0.5)
@@ -556,6 +571,12 @@ def exp_validation_with_janice(model_tag='t0337',
 
     colormap2 = np.random.rand(len(list_of_m_vs_e), 3)
     show_clusters_grid_view(list_of_m_vs_e, colormap2)
+
+    if f_extracted is not None:
+
+        save_pickle(f_extracted, list_of_all[:-1])
+        save_pickle(f_manual, list_of_manual)
+        save_pickle(f_model, model_bundle)
 
     return bas
 
@@ -695,7 +716,8 @@ def exp_tumor_data(model_tag,
                    local_slr=True,
                    verbose=True,
                    disp=False,
-                   expand_thr=None):
+                   expand_thr=None,
+                   fname=None):
 
     #model_streamlines = get_camilles_bundles('all')
     #model_bundle = get_camilles_bundles('CST_left')
@@ -730,7 +752,7 @@ def exp_tumor_data(model_tag,
                                    disp=disp, verbose=verbose,
                                    expand_thr=expand_thr)
 
-    show_bundles(model_bundle, extracted)
+    # show_bundles(model_bundle, extracted)
     colormap = np.array([[1, 0, 0.], [0, 1, 0.], [0, 0, 1.]])
 
     if bundle_type == 'cst.left':
@@ -741,22 +763,94 @@ def exp_tumor_data(model_tag,
     manual_bundle_in_model = transform_streamlines(manual_bundle,
                                                    np.dot(mat2, mat))
 
-    show_clusters_grid_view([model_bundle, extracted, manual_bundle_in_model],
-                            colormap)
-    1/0
+    m_e_ma = [model_bundle, extracted, manual_bundle_in_model]
+
+    if verbose:
+        show_clusters_grid_view(m_e_ma,
+                                colormap)
+
+    if fname is not None:
+        save_pickle(fname, m_e_ma)
+
+
+def load_m_e_ma(fname):
+
+    m_e_ma = load_pickle(fname)
+    colormap = np.array([[1, 0, 0.], [0, 1, 0.], [0, 0, 1.]])
+    show_clusters_grid_view(m_e_ma, colormap)
+
+def load_janice_results(f_extracted, f_manual, f_model):
+
+    np.random.seed(20)
+
+    extracted = load_pickle(f_extracted)
+
+    manual = load_pickle(f_manual)
+
+    model = load_pickle(f_model)
+
+    colormap = np.random.rand(len(extracted) + 1, 3)
+
+    colormap[-1] = np.array([1, 0, 0.])
+
+    show_clusters_grid_view(extracted + [model], colormap, size=(1200, 1200),
+                            tubes=True)
+
+    show_clusters_grid_view(manual + [model], colormap, size=(1200, 1200),
+                            tubes=True)
+
+    #show_clusters_grid_view([model] + [model] + )
+
+    ren = fvtk.ren()
+    ren.SetBackground(1, 1, 1.)
+
+    model_actor = fvtk.streamtube(model, fvtk.colors.red)
+    fvtk.add(ren, model_actor)
+    fvtk.show(ren, size=(1200, 1200))
+    fvtk.record(ren, size=(1200, 1200), out_path='0.png')
+    model_actor.GetProperty().SetOpacity(0)
+
+    from dipy.viz.fvtk import colors as c
+
+    colors = [c.alice_blue, c.maroon, c.alizarin_crimson, c.mars_orange, c.antique_white,
+             c.mars_yellow, c.aquamarine, c.melon, c.aquamarine_medium, c.midnight_blue,
+             c.aureoline_yellow, c.mint, c.azure, c.mint_cream, c.banana, c.misty_rose,
+             c.beige]
+
+    for i in range(len(extracted)):
+        extracted_actor = fvtk.streamtube(extracted[i],colors[i])
+        fvtk.add(ren, extracted_actor)
+        fvtk.show(ren,size=(1200, 1200))
+        fvtk.record(ren, size=(1200, 1200), out_path=str(i) + '_extracted.png')
+        fvtk.rm(ren, extracted_actor)
+
+        manual_actor = fvtk.streamtube(manual[i], colors[i])
+        fvtk.add(ren, manual_actor)
+        fvtk.show(ren,size=(1200, 1200))
+        fvtk.record(ren, size=(1200, 1200), out_path=str(i) + '_manual.png')
+        fvtk.rm(ren, manual_actor)
+
+
 
 
 if __name__ == '__main__':
 
-#    bas = exp_validation_with_janice(model_tag='t0337',
-#                                     bundle_type='UNC_R',
-#                                     close_centroids_thr=20,
-#                                     clean_thr=5.,
-#                                     local_slr=True,
-#                                     verbose=True,
-#                                     disp=False)
-#    plot(bas, 'o')
+    bas = exp_validation_with_janice(model_tag='t0337',
+                                     bundle_type='UNC_R',
+                                     close_centroids_thr=20,
+                                     clean_thr=5.,
+                                     local_slr=True,
+                                     verbose=True,
+                                     disp=False,
+                                     expand_thr=2.,
+                                     f_extracted='extracted.pkl',
+                                     f_manual='manual.pkl',
+                                     f_model='model.pkl')
+    plot(bas, 'o')
 
+    load_janice_results(f_extracted='extracted.pkl',
+                        f_manual='manual.pkl',
+                        f_model='model.pkl')
 
 #    bas = exp_fancy_data(model_tag='Renauld',
 #                         bundle_type='cst.right',
@@ -766,14 +860,45 @@ if __name__ == '__main__':
 #                         verbose=True,
 #                         disp=False)
 
-
-    exp_tumor_data(model_tag='Girard',
-                   bundle_type='cst.left',
-                   close_centroids_thr=20,
-                   clean_thr=5.,
-                   local_slr=True,
-                   verbose=True,
-                   disp=False,
-                   expand_thr=5.)
-
-
+#    dname_res = '/home/eleftherios/postdoc/ismrm2015/tumor_results/'
+#    exp_tumor_data(model_tag='Girard',
+#                   bundle_type='cst.left',
+#                   close_centroids_thr=20,
+#                   clean_thr=5.,
+#                   local_slr=True,
+#                   verbose=True,
+#                   disp=False,
+#                   expand_thr=None,
+#                   fname = dname_res + 'Girard_cst.left_expand_None.pkl')
+#
+#
+#    exp_tumor_data(model_tag='Girard',
+#                   bundle_type='cst.left',
+#                   close_centroids_thr=20,
+#                   clean_thr=5.,
+#                   local_slr=True,
+#                   verbose=True,
+#                   disp=False,
+#                   expand_thr=5.,
+#                   fname = dname_res + 'Girard_cst.left_expand_5.pkl')
+#
+#    exp_tumor_data(model_tag='Girard',
+#                   bundle_type='cst.right',
+#                   close_centroids_thr=20,
+#                   clean_thr=5.,
+#                   local_slr=True,
+#                   verbose=True,
+#                   disp=False,
+#                   expand_thr=None,
+#                   fname = dname_res + 'Girard_cst.right_expand_None.pkl')
+#
+#
+#    exp_tumor_data(model_tag='Girard',
+#                   bundle_type='cst.right',
+#                   close_centroids_thr=20,
+#                   clean_thr=5.,
+#                   local_slr=True,
+#                   verbose=True,
+#                   disp=False,
+#                   expand_thr=5.,
+#                   fname = dname_res + 'Girard_cst.right_expand_5.pkl')
