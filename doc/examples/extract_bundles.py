@@ -9,7 +9,7 @@ import nibabel as nib
 import nibabel.trackvis as tv
 from glob import glob
 from dipy.viz import fvtk
-from time import time
+from time import time, sleep
 
 from dipy.tracking.streamline import (length,
                                       transform_streamlines,
@@ -779,6 +779,43 @@ def load_m_e_ma(fname):
     colormap = np.array([[1, 0, 0.], [0, 1, 0.], [0, 0, 1.]])
     show_clusters_grid_view(m_e_ma, colormap)
 
+
+def load_m_e_ma_one(fname):
+
+    m_e_ma = load_pickle(fname)
+
+    colormap = np.array([[1, 0, 0.], [0, 1, 0.], [0, 0, 1.]])
+
+    ren = fvtk.ren()
+    ren.SetBackground(1, 1, 1.)
+
+    model = m_e_ma[0]
+
+    model_actor = fvtk.line(model, fvtk.colors.red, linewidth=3)
+    fvtk.add(ren, model_actor)
+    fvtk.show(ren, size=(1200, 1200))
+    sleep(1)
+    fvtk.record(ren, size=(1200, 1200), magnification=1, out_path='model_cst.png')
+    model_actor.GetProperty().SetOpacity(0)
+
+
+    extracted_actor = fvtk.line(m_e_ma[1], fvtk.colors.orange, linewidth=3)
+    fvtk.add(ren, extracted_actor)
+    fvtk.show(ren,size=(1200, 1200))
+    sleep(1)
+    fvtk.record(ren, size=(1200, 1200), magnification=1,
+                out_path='extracted_cst.png')
+    fvtk.rm(ren, extracted_actor)
+
+    extracted_actor = fvtk.line(m_e_ma[2], fvtk.colors.orange, linewidth=3)
+    fvtk.add(ren, extracted_actor)
+    fvtk.show(ren,size=(1200, 1200))
+    sleep(1)
+    fvtk.record(ren, size=(1200, 1200), magnification=1,
+                out_path='manual_cst.png')
+    fvtk.rm(ren, extracted_actor)
+
+
 def load_janice_results(f_extracted, f_manual, f_model):
 
     np.random.seed(20)
@@ -804,30 +841,32 @@ def load_janice_results(f_extracted, f_manual, f_model):
     ren = fvtk.ren()
     ren.SetBackground(1, 1, 1.)
 
-    model_actor = fvtk.streamtube(model, fvtk.colors.red)
+    model_actor = fvtk.line(model, fvtk.colors.red, linewidth=3)
     fvtk.add(ren, model_actor)
     fvtk.show(ren, size=(1200, 1200))
-    fvtk.record(ren, size=(1200, 1200), out_path='0.png')
+    sleep(1)
+    fvtk.record(ren, size=(1200, 1200), magnification=1, out_path='0.png')
     model_actor.GetProperty().SetOpacity(0)
 
     from dipy.viz.fvtk import colors as c
 
-    colors = [c.alice_blue, c.maroon, c.alizarin_crimson, c.mars_orange, c.antique_white,
-             c.mars_yellow, c.aquamarine, c.melon, c.aquamarine_medium, c.midnight_blue,
-             c.aureoline_yellow, c.mint, c.azure, c.mint_cream, c.banana, c.misty_rose,
-             c.beige]
+    colors = [c.blue, c.green, c.orange, c.black, c.magenta]
 
     for i in range(len(extracted)):
-        extracted_actor = fvtk.streamtube(extracted[i],colors[i])
+        extracted_actor = fvtk.line(extracted[i],colors[i], linewidth=3)
         fvtk.add(ren, extracted_actor)
         fvtk.show(ren,size=(1200, 1200))
-        fvtk.record(ren, size=(1200, 1200), out_path=str(i) + '_extracted.png')
+        sleep(1)
+        fvtk.record(ren, size=(1200, 1200), magnification=1,
+                    out_path=str(i) + '_extracted.png')
         fvtk.rm(ren, extracted_actor)
 
-        manual_actor = fvtk.streamtube(manual[i], colors[i])
+        manual_actor = fvtk.line(manual[i], colors[i], linewidth=3)
         fvtk.add(ren, manual_actor)
         fvtk.show(ren,size=(1200, 1200))
-        fvtk.record(ren, size=(1200, 1200), out_path=str(i) + '_manual.png')
+        sleep(1)
+        fvtk.record(ren, size=(1200, 1200), magnification=1,
+                    out_path=str(i) + '_manual.png')
         fvtk.rm(ren, manual_actor)
 
 
