@@ -10,7 +10,74 @@ from dipy.reconst.csdeconv import (ConstrainedSphericalDeconvModel,
 from dipy.reconst.dti import TensorModel
 from dipy.reconst.peaks import peaks_from_model
 from dipy.tracking.local import ThresholdTissueClassifier
+from dipy.tracking import utils
+from dipy.tracking.local import LocalTracking
+from dipy.io.trackvis import save_trk
+from dipy.tracking.local.prob_direction_getter import (ProbabilisticDirectionGetter,
+                                                      _asarray)
+from dipy.viz import fvtk
+from dipy.viz.colormap import line_colors
 
+
+def show_peaks(peaks):
+    ren = fvtk.ren()
+
+    peak_dirs = peaks.peak_dirs
+    peak_values = peaks.peak_values
+
+    slice_no = peak_values.shape[2] / 2
+
+    fvtk.add(ren, fvtk.peaks(peak_dirs[:, :, slice_no:slice_no + 1],
+                             peak_values[:, :, slice_no:slice_no + 1]))
+
+    print('Saving illustration as csd_direction_field.png')
+    fvtk.show(ren, size=(900, 900))
+    fvtk.record(ren, out_path='csd_direction_field.png', size=(900, 900))
+
+
+def show_streamlines(streamlines):
+
+    ren = fvtk.ren()
+
+    fvtk.add(ren, fvtk.line(streamlines, line_colors(streamlines)))
+
+    fvtk.show(ren)
+
+
+class MaximumDeterministicDirectionGetter(ProbabilisticDirectionGetter):
+    """Return direction of a sphere with the highest probability mass
+    function (pmf).
+    """
+    def get_direction(self, point, direction):
+        """Find direction with the highest pmf to updates ``direction`` array
+        with a new direction.
+        Parameters
+        ----------
+        point : memory-view (or ndarray), shape (3,)
+            The point in an image at which to lookup tracking directions.
+        direction : memory-view (or ndarray), shape (3,)
+            Previous tracking direction.
+        Returns
+        -------
+        status : int
+            Returns 0 `direction` was updated with a new tracking direction, or
+            1 otherwise.
+        """
+        # point and direction are passed in as cython memory views
+        pmf = self.pmf_gen.get_pmf(point)
+        cdf = self._adj_matrix[tuple(direction)] * pmf
+        idx = np.argmax(cdf)
+
+        if pmf[idx] == 0:
+            return 1
+
+        newdir = self.vertices[idx]
+        # Update direction and return 0 for error
+        if np.dot(newdir, _asarray(direction)) > 0:
+            direction[:] = newdir
+        else:
+            direction[:] = -newdir
+        return 0
 
 
 def separate_multi_shell_data(gtab, data, mask, shell=1):
@@ -62,8 +129,33 @@ def save_nifti(fname, data, affine):
     nib.save(nib.Nifti1Image(data, affine), fname)
 
 
-def load_data(fraw, fmask, fbval, fbvec, verbose=False):
+def save_peaks(peaks_dir, peaks, tag=''):
+
+    save_nifti(pjoin(peaks_dir, 'peak_dirs' + tag + '.nii.gz'),
+               peaks.peak_dirs)
+
+    save_nifti(pjoin(peaks_dir, 'peak_values' + tag + '.nii.gz'),
+               peaks.peak_values)
+
+    save_nifti(pjoin(peaks_dir, 'peak_indices' + tag + '.nii.gz'),
+               peaks.peak_indices)
+
+def load_peaks(dname, peaks):
+
+    pass
+
+
+def load_data(fraw, fmask, fbval, fbvec, verbose=False,
+              flip_x=False, flip_y=False, flip_z=False):
+
     bvals, bvecs = read_bvals_bvecs(fbval, fbvec)
+    if flip_x:
+        bvecs[:, 0] = - bvecs[:, 0]
+    if flip_y:
+        bvecs[:, 1] = - bvecs[:, 1]
+    if flip_z:
+        bvecs[:, 2] = - bvecs[:, 2]
+
     gtab = gradient_table(bvals, bvecs, b0_threshold=10)
     data, affine = load_nifti(fraw, verbose)
     mask, _ = load_nifti(fmask)
@@ -121,6 +213,8 @@ csd_load = True
 
 tracking_calculate = True
 
+flip_x = False
+
 # Separate first shell data
 
 if first_shell_obtain:
@@ -170,7 +264,8 @@ if first_shell_load:
     tag = '_1000_'
 
 
-gtab, data, affine, mask = load_data(fdwi, fmask, fbval, fbvec, verbose)
+gtab, data, affine, mask = load_data(fdwi, fmask, fbval, fbvec, verbose,
+                                     flip_x=flip_x)
 
 # Calculate Tensors FA and MD
 
@@ -193,8 +288,9 @@ if tensor_calculate:
 
 if tensor_load:
 
+    FA, _ = load_nifti(pjoin(dname, 'fa' + tag + str(resolution) + '.nii.gz'))
+    MD, _ = load_nifti(pjoin(dname, 'md' + tag + str(resolution) + '.nii.gz'))
     wm_mask, _ = load_nifti(pjoin(dname, 'wm_mask' + tag + str(resolution) + '.nii.gz'))
-
 
 # Calculate Constrained Spherical Deconvolution
 
@@ -218,7 +314,40 @@ if csd_load:
 
     sh, affine = load_nifti(pjoin(dname, 'sh' + tag + str(resolution) + '.nii.gz'))
 
-
 if tracking_calculate:
-    pass
-    #classifier = ThresholdTissueClassifier(csa_peaks.gfa, .25)
+
+    show_peaks(peaks)
+
+    classifier = ThresholdTissueClassifier(FA, .1)
+
+    seeds = utils.seeds_from_mask(wm_mask, density=[1, 1, 1], affine=affine)
+
+    # Initialization of LocalTracking. The computation happens in the next step.
+
+    streamlines = LocalTracking(peaks, classifier, seeds, affine, step_size=.5)
+
+#    max_dg = MaximumDeterministicDirectionGetter.from_shcoeff(sh,
+#                                                              max_angle=30.,
+#                                                              sphere=sphere)
+#    streamlines = LocalTracking(max_dg, classifier, seeds, affine, step_size=.5)
+
+    # Compute streamlines and store as a list.
+    streamlines = list(streamlines)
+
+    show_streamlines(streamlines[:1000])
+
+    # Prepare the display objects.
+    # color = line_colors(streamlines)
+    # streamlines_actor = fvtk.line(streamlines, line_colors(streamlines))
+
+    # Create the 3d display.
+    # r = fvtk.ren()
+    # fvtk.add(r, streamlines_actor)
+
+    # fvtk.show(r)
+    # Save still images for this static example. Or for interactivity use fvtk.show
+    # fvtk.record(r, n_frames=1, out_path='deterministic.png',
+    #            size=(800, 800))
+
+    save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '.trk'),
+             streamlines, affine, FA.shape)
