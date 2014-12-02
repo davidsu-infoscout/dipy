@@ -7,7 +7,10 @@ from dipy.core.gradients import gradient_table
 from dipy.align.aniso2iso import resample
 from dipy.reconst.csdeconv import (ConstrainedSphericalDeconvModel,
                                    auto_response)
+from dipy.reconst.dti import TensorModel
 from dipy.reconst.peaks import peaks_from_model
+from dipy.tracking.local import ThresholdTissueClassifier
+
 
 
 def separate_multi_shell_data(gtab, data, mask, shell=1):
@@ -42,6 +45,7 @@ def load_nifti(fname, verbose=False):
     data = img.get_data()
     affine = img.get_affine()
     if verbose:
+        print('Loading...')
         print(fname)
         print(data.shape)
         print(affine)
@@ -49,6 +53,13 @@ def load_nifti(fname, verbose=False):
         print(nib.aff2axcodes(affine))
         print
     return data, affine
+
+
+def save_nifti(fname, data, affine):
+    if verbose:
+        print('Saving...')
+        print(fname)
+    nib.save(nib.Nifti1Image(data, affine), fname)
 
 
 def load_data(fraw, fmask, fbval, fbvec, verbose=False):
@@ -94,14 +105,21 @@ fmask = pjoin(dname, 'nodif_brain_mask.nii.gz')
 fdwi = pjoin(dname, 'data.nii.gz')
 
 verbose = True
-with_resampling = True
 
-first_shell_obtain = False
+first_shell_obtain = True
 
 preserve_memory = True
 first_shell_load = True
-resolution = 2 # 1.25
 
+resolution = 2.0 # 1.25, 0.7
+
+tensor_calculate = True
+tensor_load = True
+
+csd_calculate = True
+csd_load = True
+
+tracking_calculate = True
 
 # Separate first shell data
 
@@ -115,56 +133,92 @@ if first_shell_obtain:
     if preserve_memory:
         del data
 
-    if with_resampling:
+    if resolution != 1.25:
 
-        data2, affine2 = resample(data_1000, affine, (1.25,) * 3, (2.,) * 3)
-        mask2, _ = resample(mask, affine, (1.25,) * 3, (2.,) * 3, order=0)
-        nib.save(nib.Nifti1Image(data2, affine2),
-                 pjoin(dname, 'data_1000_2.nii.gz'))
-        nib.save(nib.Nifti1Image(mask2, affine2),
-                 pjoin(dname, 'nodif_brain_mask_2.nii.gz'))
+        data2, affine2 = resample(data_1000, affine,
+                                  (1.25,) * 3, (resolution,) * 3)
+        mask2, _ = resample(mask, affine,
+                            (1.25,) * 3, (resolution,) * 3, order=0)
 
-    nib.save(nib.Nifti1Image(data_1000, affine),
-             pjoin(dname, 'data_1000.nii.gz'))
+        save_nifti(pjoin(dname, 'data_1000_' + str(resolution) + '.nii.gz'),
+                   data2, affine2)
+
+        save_nifti(pjoin(dname, 'mask_' + str(resolution) + '.nii.gz'),
+                   mask2, affine2)
+
+    else:
+        save_nifti(pjoin(dname, 'data_1000_' + str(resolution) + '.nii.gz'),
+                   data_1000, affine)
+        save_nifti(pjoin(dname, 'mask_' + str(resolution) + '.nii.gz'),
+                   mask, affine)
 
     np.savetxt(pjoin(dname, 'bvals_1000'), gtab_1000.bvals)
     np.savetxt(pjoin(dname, 'bvecs_1000'), gtab_1000.bvecs.T)
 
 # Load first shell only
 
+tag = ''
+
 if first_shell_load:
 
     fbval = pjoin(dname, 'bvals_1000')
     fbvec = pjoin(dname, 'bvecs_1000')
 
-    if resolution == 1.25:
-        fdwi = pjoin(dname, 'data_1000.nii.gz')
-        fmask = pjoin(dname, 'nodif_brain_mask.nii.gz')
-    if resolution == 2:
-        fdwi = pjoin(dname, 'data_1000_2.nii.gz')
-        fmask = pjoin(dname, 'nodif_brain_mask_2.nii.gz')
+    fdwi = pjoin(dname, 'data_1000_' + str(resolution) + '.nii.gz')
+    fmask = pjoin(dname, 'mask_' + str(resolution) + '.nii.gz')
+
+    tag = '_1000_'
 
 
 gtab, data, affine, mask = load_data(fdwi, fmask, fbval, fbvec, verbose)
 
+# Calculate Tensors FA and MD
+
+if tensor_calculate:
+    ten_model = TensorModel(gtab)
+    ten_fit = ten_model.fit(data, mask)
+
+    FA = ten_fit.fa
+    MD = ten_fit.md
+
+    wm_mask = (np.logical_or(FA >= 0.4, (np.logical_and(FA >= 0.15, MD >= 0.0011))))
+
+
+    save_nifti(pjoin(dname, 'fa' + tag + str(resolution) + '.nii.gz'),
+               FA, affine)
+    save_nifti(pjoin(dname, 'md' + tag + str(resolution) + '.nii.gz'),
+               MD, affine)
+    save_nifti(pjoin(dname, 'wm_mask' + tag + str(resolution) + '.nii.gz'),
+               wm_mask.astype('f4'), affine)
+
+if tensor_load:
+
+    wm_mask, _ = load_nifti(pjoin(dname, 'wm_mask' + tag + str(resolution) + '.nii.gz'))
+
+
 # Calculate Constrained Spherical Deconvolution
 
-response, ratio = auto_response(gtab, data, roi_radius=15, fa_thr=0.7)
+if csd_calculate:
 
-print('Response function', response)
+    response, ratio = auto_response(gtab, data, roi_radius=15, fa_thr=0.7)
 
-sphere = get_sphere('symmetric724')
+    print('Response function', response)
 
-peaks = csd(gtab, data, affine, mask, response, sphere, min_angle=25.0,
-            relative_peak_th=0.5, sh_order=8)
+    sphere = get_sphere('symmetric724')
 
-if resolution == 1.25:
-    nib.save(nib.Nifti1Image(peaks.shm_coeff, affine),
-             pjoin(dname, 'sh_1000.nii.gz'))
+    peaks = csd(gtab, data, affine, mask, response, sphere, min_angle=25.0,
+                relative_peak_th=0.5, sh_order=8)
+
+    save_nifti(pjoin(dname, 'sh' + tag + str(resolution) + '.nii.gz'),
+               peaks.shm_coeff, affine)
+    np.savetxt(pjoin(dname, 'B.txt'), peaks.B)
 
 
-if resolution == 2:
-    nib.save(nib.Nifti1Image(peaks.shm_coeff, affine),
-             pjoin(dname, 'sh_1000_2.nii.gz'))
+if csd_load:
 
-np.savetxt(pjoin(dname, 'B.txt'), peaks.B)
+    sh, affine = load_nifti(pjoin(dname, 'sh' + tag + str(resolution) + '.nii.gz'))
+
+
+if tracking_calculate:
+    pass
+    #classifier = ThresholdTissueClassifier(csa_peaks.gfa, .25)
