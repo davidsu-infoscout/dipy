@@ -17,6 +17,7 @@ from dipy.tracking.local.prob_direction_getter import (ProbabilisticDirectionGet
                                                       _asarray)
 from dipy.viz import fvtk
 from dipy.viz.colormap import line_colors
+from scipy.ndimage.filters import convolve
 
 
 def show_peaks(peaks):
@@ -162,6 +163,20 @@ def load_data(fraw, fmask, fbval, fbvec, verbose=False,
     return gtab, data, affine, mask
 
 
+def create_wmparc_wm_mask(fwmparc, fwm_mask, resolution):
+
+    data, affine = load_nifti(fwmparc)
+    # Label information from
+    # http://surfer.nmr.mgh.harvard.edu/fswiki/FsTutorial/AnatomicalROI/FreeSurferColorLUT
+    mask = (data >= 3000) | ((data >= 250) & (data <=255)) | (data == 219)
+    mask = mask.astype('f8')
+
+    mask2, affine2 = resample(mask, affine,
+                              (0.7,) * 3, (resolution,) * 3, order=0)
+
+    save_nifti(fwm_mask, mask2, affine2)
+
+
 def pfm(model, data, mask, sphere, parallel=True, min_angle=25.0,
         relative_peak_th=0.5, sh_order=8):
 
@@ -187,6 +202,50 @@ def csd(gtab, data, affine, mask, response, sphere, min_angle=25.0,
     return peaks
 
 
+def estimate_sigma(arr, disable_background_masking=False):
+    """Standard deviation estimation from local patches
+    Parameters
+    ----------
+    arr : 3D or 4D ndarray
+        The array to be estimated
+    disable_background_masking : bool, default False
+        If True, uses all voxels for the estimation, otherwise, only non-zeros voxels are used.
+        Useful if the background is masked by the scanner.
+    Returns
+    -------
+    sigma : ndarray
+        standard deviation of the noise, one estimation per volume.
+    """
+    k = np.zeros((3, 3, 3), dtype=np.int8)
+
+    k[0, 1, 1] = 1
+    k[2, 1, 1] = 1
+    k[1, 0, 1] = 1
+    k[1, 2, 1] = 1
+    k[1, 1, 0] = 1
+    k[1, 1, 2] = 1
+
+    if arr.ndim == 3:
+        sigma = np.zeros(1, dtype=np.float32)
+        arr = arr[..., None]
+    elif arr.ndim == 4:
+        sigma = np.zeros(arr.shape[-1], dtype=np.float32)
+    else:
+        raise ValueError("Array shape is not supported!", arr.shape)
+
+    if disable_background_masking:
+        mask = arr[..., 0].astype(np.bool)
+    else:
+        mask = np.ones_like(arr[..., 0], dtype=np.bool)
+
+    conv_out = np.zeros(arr[...,0].shape, dtype=np.float32)
+    for i in range(sigma.size):
+        convolve(arr[..., i], k, output=conv_out)
+        mean_block = np.sqrt(6/7) * (arr[..., i] - 1/6 * conv_out)
+        sigma[i] = np.sqrt(np.mean(mean_block[mask]**2))
+
+    return sigma
+
 # Load HCP Q3 preprocessesd data
 
 dname = '/home/eleftherios/Data/HCP_Elef/80/100307/T1w/Diffusion'
@@ -198,22 +257,25 @@ fdwi = pjoin(dname, 'data.nii.gz')
 
 verbose = True
 
-first_shell_obtain = True
+first_shell_obtain = False
 
 preserve_memory = True
 first_shell_load = True
 
 resolution = 2.0 # 1.25, 0.7
 
-tensor_calculate = True
+tensor_calculate = False
 tensor_load = True
 
-csd_calculate = True
+wm_mask_from_t1_calculate = True
+wm_mask_from_t1_load = True
+
+csd_calculate = False
 csd_load = True
 
 tracking_calculate = True
 
-flip_x = False
+sphere = get_sphere('symmetric724')
 
 # Separate first shell data
 
@@ -264,8 +326,16 @@ if first_shell_load:
     tag = '_1000_'
 
 
-gtab, data, affine, mask = load_data(fdwi, fmask, fbval, fbvec, verbose,
-                                     flip_x=flip_x)
+gtab, data, affine, mask = load_data(fdwi, fmask, fbval, fbvec, verbose)
+
+
+# TODO
+# estimate sigma
+#
+#sigma = estimate_sigma(data, disable_background_masking=False)
+#
+#print(sigma)
+
 
 # Calculate Tensors FA and MD
 
@@ -292,15 +362,23 @@ if tensor_load:
     MD, _ = load_nifti(pjoin(dname, 'md' + tag + str(resolution) + '.nii.gz'))
     wm_mask, _ = load_nifti(pjoin(dname, 'wm_mask' + tag + str(resolution) + '.nii.gz'))
 
+
+if wm_mask_from_t1_calculate:
+
+    create_wmparc_wm_mask(pjoin(dname, 'wmparc_0.7.nii.gz'),
+                          pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'),
+                          resolution)
+
+if wm_mask_from_t1_load:
+    wm_mask, _ = load_nifti(pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'))
+
 # Calculate Constrained Spherical Deconvolution
 
 if csd_calculate:
 
-    response, ratio = auto_response(gtab, data, roi_radius=15, fa_thr=0.7)
+    response, ratio = auto_response(gtab, data, roi_radius=10, fa_thr=0.7)
 
     print('Response function', response)
-
-    sphere = get_sphere('symmetric724')
 
     peaks = csd(gtab, data, affine, mask, response, sphere, min_angle=25.0,
                 relative_peak_th=0.5, sh_order=8)
@@ -316,9 +394,10 @@ if csd_load:
 
 if tracking_calculate:
 
-    show_peaks(peaks)
+    # show_peaks(peaks)
 
-    classifier = ThresholdTissueClassifier(FA, .1)
+    #classifier = ThresholdTissueClassifier(FA, .1)
+    classifier = ThresholdTissueClassifier(wm_mask.astype('f8'), .5) # with mask smooth and
 
     seeds = utils.seeds_from_mask(wm_mask, density=[1, 1, 1], affine=affine)
 
@@ -326,15 +405,15 @@ if tracking_calculate:
 
     streamlines = LocalTracking(peaks, classifier, seeds, affine, step_size=.5)
 
-#    max_dg = MaximumDeterministicDirectionGetter.from_shcoeff(sh,
-#                                                              max_angle=30.,
-#                                                              sphere=sphere)
-#    streamlines = LocalTracking(max_dg, classifier, seeds, affine, step_size=.5)
+    max_dg = MaximumDeterministicDirectionGetter.from_shcoeff(sh,
+                                                              max_angle=30.,
+                                                              sphere=sphere)
+    streamlines = LocalTracking(max_dg, classifier, seeds, affine, step_size=.5)
 
     # Compute streamlines and store as a list.
     streamlines = list(streamlines)
 
-    show_streamlines(streamlines[:1000])
+    # show_streamlines(streamlines[:1000])
 
     # Prepare the display objects.
     # color = line_colors(streamlines)
@@ -349,5 +428,5 @@ if tracking_calculate:
     # fvtk.record(r, n_frames=1, out_path='deterministic.png',
     #            size=(800, 800))
 
-    save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '.trk'),
+    save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '_wm_mask.trk'),
              streamlines, affine, FA.shape)
