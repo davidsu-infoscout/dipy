@@ -415,18 +415,5 @@ if tracking_calculate:
 
     # show_streamlines(streamlines[:1000])
 
-    # Prepare the display objects.
-    # color = line_colors(streamlines)
-    # streamlines_actor = fvtk.line(streamlines, line_colors(streamlines))
-
-    # Create the 3d display.
-    # r = fvtk.ren()
-    # fvtk.add(r, streamlines_actor)
-
-    # fvtk.show(r)
-    # Save still images for this static example. Or for interactivity use fvtk.show
-    # fvtk.record(r, n_frames=1, out_path='deterministic.png',
-    #            size=(800, 800))
-
     save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '_wm_mask.trk'),
              streamlines, affine, FA.shape)
