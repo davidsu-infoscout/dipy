@@ -163,13 +163,10 @@ def load_data(fraw, fmask, fbval, fbvec, verbose=False,
     return gtab, data, affine, mask
 
 
-def create_wmparc_wm_mask(fwmparc, fwm_mask, resolution):
+def create_aparc_wm_mask(faparc, fwm_mask, resolution):
 
-    data, affine = load_nifti(fwmparc)
-    # Label information from
-    # http://surfer.nmr.mgh.harvard.edu/fswiki/FsTutorial/AnatomicalROI/FreeSurferColorLUT
-    # mask = (data >= 3000) | ((data >= 250) & (data <=255)) | (data == 7)  | (data == 46) | (data == 28) | (data == 60)
-    mask = ((data >= 3000) | (data < 1000)) & (data != 224)
+    data, affine = load_nifti(faparc)
+    mask = (data == 2) | (data == 41) | (data == 7) | (data == 46) | ((data >= 250) & (data <=255))
 
     mask = mask.astype('f8')
 
@@ -269,13 +266,21 @@ resolution = 2.0 # 1.25, 0.7
 tensor_calculate = False
 tensor_load = True
 
-wm_mask_from_t1_calculate = True
-wm_mask_from_t1_load = True
+wm_mask_from_t1_calculate = False
+wm_mask_from_t1_load = False
+
+wm_mask_from_fast_load = True
 
 csd_calculate = True
 csd_load = True
 
 tracking_calculate = True
+tracking_pam_fa = False
+tracking_maxodf_fa = False
+tracking_pam_wm_mask = False
+tracking_maxodf_wm_mask = True
+
+
 
 sphere = get_sphere('symmetric724')
 
@@ -348,38 +353,40 @@ if tensor_calculate:
     FA = ten_fit.fa
     MD = ten_fit.md
 
-    wm_mask = (np.logical_or(FA >= 0.4, (np.logical_and(FA >= 0.15, MD >= 0.0011))))
-
-
     save_nifti(pjoin(dname, 'fa' + tag + str(resolution) + '.nii.gz'),
                FA, affine)
     save_nifti(pjoin(dname, 'md' + tag + str(resolution) + '.nii.gz'),
                MD, affine)
-    save_nifti(pjoin(dname, 'wm_mask' + tag + str(resolution) + '.nii.gz'),
-               wm_mask.astype('f4'), affine)
 
 if tensor_load:
 
     FA, _ = load_nifti(pjoin(dname, 'fa' + tag + str(resolution) + '.nii.gz'))
     MD, _ = load_nifti(pjoin(dname, 'md' + tag + str(resolution) + '.nii.gz'))
+
+    wm_mask = (np.logical_or(FA >= 0.4, (np.logical_and(FA >= 0.15, MD >= 0.0011/2.))))
+
+    save_nifti(pjoin(dname, 'wm_mask' + tag + str(resolution) + '.nii.gz'),
+               wm_mask.astype('f4'), affine)
+
     wm_mask, _ = load_nifti(pjoin(dname, 'wm_mask' + tag + str(resolution) + '.nii.gz'))
 
 
 if wm_mask_from_t1_calculate:
 
-    # create_wmparc_wm_mask(pjoin(dname, 'aparc+aseg_0.7.nii.gz'),
-    #                      pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'),
-    #                      resolution)
-    create_wmparc_wm_mask(pjoin(dname, 'wmparc_0.7.nii.gz'),
-                          pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'),
-                          resolution)
-
-
+    create_aparc_wm_mask(pjoin(dname, 'aparc+aseg_0.7.nii.gz'),
+                         pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'),
+                         resolution)
 
 if wm_mask_from_t1_load:
     wm_mask, _ = load_nifti(pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'))
 
-1/0
+if wm_mask_from_fast_load:
+
+    if resolution == 1.25:
+        wm_mask, _ = load_nifti(pjoin(dname, 'fast_1.25mm', 'mask_wm.nii.gz'))
+
+    if resolution == 2.0:
+        wm_mask, _ = load_nifti(pjoin(dname, 'fast_2mm', 'mask_wm.nii.gz'))
 
 # Calculate Constrained Spherical Deconvolution
 
@@ -404,25 +411,43 @@ if csd_load:
 if tracking_calculate:
 
     # show_peaks(peaks)
-
-    #classifier = ThresholdTissueClassifier(FA, .1)
-    classifier = ThresholdTissueClassifier(wm_mask.astype('f8'), .5) # with mask smooth and
-
     seeds = utils.seeds_from_mask(wm_mask, density=[1, 1, 1], affine=affine)
 
-    # Initialization of LocalTracking. The computation happens in the next step.
+    if tracking_pam_fa:
 
-    streamlines = LocalTracking(peaks, classifier, seeds, affine, step_size=.5)
+        classifier = ThresholdTissueClassifier(FA, .1)
+        streamlines = LocalTracking(peaks, classifier, seeds, affine, step_size=.5)
+        streamlines = list(streamlines)
+        save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '_pam_fa_0.1.trk'),
+                 streamlines, affine, FA.shape)
 
-    #max_dg = MaximumDeterministicDirectionGetter.from_shcoeff(sh,
-    #                                                          max_angle=30.,
-    #                                                          sphere=sphere)
-    #streamlines = LocalTracking(max_dg, classifier, seeds, affine, step_size=.5)
+    if tracking_pam_wm_mask:
 
-    # Compute streamlines and store as a list.
-    streamlines = list(streamlines)
+        classifier = ThresholdTissueClassifier(wm_mask.astype('f8'), .5)
+        streamlines = LocalTracking(peaks, classifier, seeds, affine, step_size=.5)
+        streamlines = list(streamlines)
+        save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '_pam_wm_mask.trk'),
+                 streamlines, affine, FA.shape)
 
-    # show_streamlines(streamlines[:1000])
+    if tracking_maxodf_fa:
 
-    save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '_wm_mask_pam.trk'),
-             streamlines, affine, FA.shape)
+        classifier = ThresholdTissueClassifier(FA, .1)
+        max_dg = MaximumDeterministicDirectionGetter.from_shcoeff(sh,
+                                                                  max_angle=30.,
+                                                                  sphere=sphere)
+        streamlines = LocalTracking(max_dg, classifier, seeds, affine, step_size=.5)
+        streamlines = list(streamlines)
+        save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '_maxodf_fa_0.1.trk'),
+                 streamlines, affine, FA.shape)
+
+    if tracking_maxodf_wm_mask:
+
+        classifier = ThresholdTissueClassifier(wm_mask.astype('f8'), .5)
+        max_dg = MaximumDeterministicDirectionGetter.from_shcoeff(sh,
+                                                                  max_angle=30.,
+                                                                  sphere=sphere)
+        streamlines = LocalTracking(max_dg, classifier, seeds, affine, step_size=.5)
+        streamlines = list(streamlines)
+        save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '_maxodf_wm_mask.trk'),
+                 streamlines, affine, FA.shape)
+
