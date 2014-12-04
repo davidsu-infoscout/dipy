@@ -13,8 +13,8 @@ from dipy.tracking.local import ThresholdTissueClassifier
 from dipy.tracking import utils
 from dipy.tracking.local import LocalTracking
 from dipy.io.trackvis import save_trk
-from dipy.tracking.local.prob_direction_getter import (ProbabilisticDirectionGetter,
-                                                      _asarray)
+from dipy.direction.probabilistic_direction_getter import (ProbabilisticDirectionGetter,
+                                                           _asarray)
 from dipy.viz import fvtk
 from dipy.viz.colormap import line_colors
 from scipy.ndimage.filters import convolve
@@ -168,7 +168,9 @@ def create_wmparc_wm_mask(fwmparc, fwm_mask, resolution):
     data, affine = load_nifti(fwmparc)
     # Label information from
     # http://surfer.nmr.mgh.harvard.edu/fswiki/FsTutorial/AnatomicalROI/FreeSurferColorLUT
-    mask = (data >= 3000) | ((data >= 250) & (data <=255)) | (data == 219)
+    # mask = (data >= 3000) | ((data >= 250) & (data <=255)) | (data == 7)  | (data == 46) | (data == 28) | (data == 60)
+    mask = ((data >= 3000) | (data < 1000)) & (data != 224)
+
     mask = mask.astype('f8')
 
     mask2, affine2 = resample(mask, affine,
@@ -270,7 +272,7 @@ tensor_load = True
 wm_mask_from_t1_calculate = True
 wm_mask_from_t1_load = True
 
-csd_calculate = False
+csd_calculate = True
 csd_load = True
 
 tracking_calculate = True
@@ -365,12 +367,19 @@ if tensor_load:
 
 if wm_mask_from_t1_calculate:
 
+    # create_wmparc_wm_mask(pjoin(dname, 'aparc+aseg_0.7.nii.gz'),
+    #                      pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'),
+    #                      resolution)
     create_wmparc_wm_mask(pjoin(dname, 'wmparc_0.7.nii.gz'),
                           pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'),
                           resolution)
 
+
+
 if wm_mask_from_t1_load:
     wm_mask, _ = load_nifti(pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'))
+
+1/0
 
 # Calculate Constrained Spherical Deconvolution
 
@@ -405,15 +414,15 @@ if tracking_calculate:
 
     streamlines = LocalTracking(peaks, classifier, seeds, affine, step_size=.5)
 
-    max_dg = MaximumDeterministicDirectionGetter.from_shcoeff(sh,
-                                                              max_angle=30.,
-                                                              sphere=sphere)
-    streamlines = LocalTracking(max_dg, classifier, seeds, affine, step_size=.5)
+    #max_dg = MaximumDeterministicDirectionGetter.from_shcoeff(sh,
+    #                                                          max_angle=30.,
+    #                                                          sphere=sphere)
+    #streamlines = LocalTracking(max_dg, classifier, seeds, affine, step_size=.5)
 
     # Compute streamlines and store as a list.
     streamlines = list(streamlines)
 
     # show_streamlines(streamlines[:1000])
 
-    save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '_wm_mask.trk'),
+    save_trk(pjoin(dname, 'streamlines' + tag + str(resolution) + '_wm_mask_pam.trk'),
              streamlines, affine, FA.shape)
