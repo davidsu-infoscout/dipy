@@ -275,12 +275,10 @@ csd_calculate = True
 csd_load = True
 
 tracking_calculate = True
-tracking_pam_fa = False
-tracking_maxodf_fa = False
-tracking_pam_wm_mask = False
+tracking_pam_fa = True
+tracking_maxodf_fa = True
+tracking_pam_wm_mask = True
 tracking_maxodf_wm_mask = True
-
-
 
 sphere = get_sphere('symmetric724')
 
@@ -411,7 +409,9 @@ if csd_load:
 if tracking_calculate:
 
     # show_peaks(peaks)
-    seeds = utils.seeds_from_mask(wm_mask, density=[1, 1, 1], affine=affine)
+    seeds = utils.seeds_from_mask(wm_mask, density=[2, 2, 2], affine=affine)
+
+    print(seeds.shape)
 
     if tracking_pam_fa:
 
