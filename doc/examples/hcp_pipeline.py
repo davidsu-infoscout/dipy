@@ -176,6 +176,54 @@ def create_aparc_wm_mask(faparc, fwm_mask, resolution):
     save_nifti(fwm_mask, mask2, affine2)
 
 
+def create_from_hcp_wm_mask(fwmparc, fribbon, fwm_mask, resolution):
+
+    wmparc, affine = load_nifti(fwmparc)
+    ribbon, affine = load_nifti(fribbon)
+
+    # CORTEX_LEFT CEREBRAL_WHITE_MATTER_LEFT CORTEX_RIGHT CEREBRAL_WHITE_MATTER_RIGHT
+    # ribbon_structures = [2, 3, 41, 42]
+
+    #_WHITE_MATTER_LEFT CEREBRAL_WHITE_MATTER_RIGHT
+    ribbon_structures = [2, 41]
+
+    # CEREBELLAR_WHITE_MATTER_LEFT CEREBELLUM_LEFT THALAMUS_LEFT CAUDATE_LEFT PUTAMEN_LEFT PALLIDUM_LEFT BRAIN_STEM HIPPOCAMPUS_LEFT AMYGDALA_LEFT ACCUMBENS_LEFT DIENCEPHALON_VENTRAL_LEFT CEREBELLAR_WHITE_MATTER_RIGHT CEREBELLUM_RIGHT THALAMUS_RIGHT CAUDATE_RIGHT PUTAMEN_RIGHT PALLIDUM_RIGHT HIPPOCAMPUS_RIGHT AMYGDALA_RIGHT ACCUMBENS_RIGHT DIENCEPHALON_VENTRAL_RIGHT
+    # wmparc_structures = [7, 8, 10, 11, 12, 13, 16, 17, 18, 26, 28, 46, 47, 49, 50, 51, 52, 53, 54, 58, 60]
+
+    # CEREBELLAR_WHITE_MATTER_LEFT CEREBELLAR_WHITE_MATTER_RIGHT BRAIN_STEM
+    wmparc_structures = [7, 46, 16]
+
+    #Fornix, CC_Posterior, CC_Mid_Posterior, CC_Central, CC_MidAnterior, CC_Anterior
+    wmparc_cc_structures = [250, 251, 252, 253, 254, 255]
+
+    #LeftLateralVentricle, LeftInfLatVent, 3rdVentricle, 4thVentricle, CSF, LeftChoroidPlexus, RightLateralVentricle, RightInfLatVent, RightChoroidPlexus
+    wmparc_del_structures = [4, 5, 14, 15, 24, 31, 43, 44, 63]
+
+    #LeftCaudate RightCaudate  LeftThalamusProper, RightThalamusProper
+    wmparc_del_structures2 = [11, 50]#, 10, 49]
+
+    mask = np.zeros_like(wmparc)
+
+    for label in ribbon_structures:
+
+        mask[ribbon == label] = 1
+
+    for label in wmparc_structures + wmparc_cc_structures:
+
+        mask[wmparc == label] = 1
+
+    for label in wmparc_del_structures + wmparc_del_structures2:
+
+        mask[wmparc == label] = 0
+
+    mask = mask.astype('f8')
+
+    mask2, affine2 = resample(mask, affine,
+                              (0.7,) * 3, (resolution,) * 3, order=0)
+
+    save_nifti(fwm_mask, mask2, affine2)
+
+
 def pfm(model, data, mask, sphere, parallel=True, min_angle=25.0,
         relative_peak_th=0.5, sh_order=8):
 
@@ -257,24 +305,25 @@ fdwi = pjoin(dname, 'data.nii.gz')
 verbose = True
 
 first_shell_obtain = False
+data_load = False
 
 preserve_memory = True
-first_shell_load = True
+first_shell_load = False
 
 resolution = 2.0 # 1.25, 0.7
 
 tensor_calculate = False
-tensor_load = True
+tensor_load = False
 
-wm_mask_from_t1_calculate = False
+wm_mask_from_t1_calculate = True
 wm_mask_from_t1_load = False
 
-wm_mask_from_fast_load = True
+wm_mask_from_fast_load = False
 
-csd_calculate = True
-csd_load = True
+csd_calculate = False
+csd_load = False
 
-tracking_calculate = True
+tracking_calculate = False
 tracking_pam_fa = True
 tracking_maxodf_fa = True
 tracking_pam_wm_mask = True
@@ -310,6 +359,7 @@ if first_shell_obtain:
     else:
         save_nifti(pjoin(dname, 'data_1000_' + str(resolution) + '.nii.gz'),
                    data_1000, affine)
+
         save_nifti(pjoin(dname, 'mask_' + str(resolution) + '.nii.gz'),
                    mask, affine)
 
@@ -330,8 +380,8 @@ if first_shell_load:
 
     tag = '_1000_'
 
-
-gtab, data, affine, mask = load_data(fdwi, fmask, fbval, fbvec, verbose)
+if data_load:
+    gtab, data, affine, mask = load_data(fdwi, fmask, fbval, fbvec, verbose)
 
 
 # TODO
@@ -371,9 +421,15 @@ if tensor_load:
 
 if wm_mask_from_t1_calculate:
 
-    create_aparc_wm_mask(pjoin(dname, 'aparc+aseg_0.7.nii.gz'),
-                         pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'),
-                         resolution)
+    create_from_hcp_wm_mask(pjoin(dname, 'wmparc_0.7.nii.gz'),
+                            pjoin(dname, 'ribbon_0.7.nii.gz'),
+                            pjoin(dname, 'fs_wm_mask.nii.gz'), resolution)
+
+#    create_aparc_wm_mask(pjoin(dname, 'aparc+aseg_0.7.nii.gz'),
+#                         pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'),
+#                         resolution)
+
+1/0
 
 if wm_mask_from_t1_load:
     wm_mask, _ = load_nifti(pjoin(dname, 'wm_mask_t1_' + str(resolution) + '.nii.gz'))
