@@ -408,10 +408,12 @@ def auto_extract(model_bundle, moved_streamlines,
 
         t = time()
 
-        x0 = np.array([0, 0, 0, 0, 0, 0, 1.])
-        bounds = [(-30, 30), (-30, 30), (-30, 30),
-                  (-45, 45), (-45, 45), (-45, 45), (0.5, 1.5)]
+        # x0 = np.array([0, 0, 0, 0, 0, 0, 1.])
+        x0 = np.array([0, 0, 0, 0, 0, 0])
+        # bounds = [(-30, 30), (-30, 30), (-30, 30),
+        #          (-45, 45), (-45, 45), (-45, 45), (0.5, 1.5)]
 
+        bounds = None
         slr = StreamlineLinearRegistration(x0=x0, bounds=bounds)
 
         static = select_random_set_of_streamlines(model_bundle, 400)
@@ -522,7 +524,13 @@ def exp_validation_with_janice(model_tag='t0337',
 
         #show_bundles(centroids1, centroids2)
         #show_bundles(centroids1, transform_streamlines(centroids2, mat))
-
+        if disp:
+            
+            show_bundles(select_random_set_of_streamlines(model_streamlines, 5000), 
+                         select_random_set_of_streamlines(streamlines, 5000))
+            show_bundles(select_random_set_of_streamlines(model_streamlines, 5000), 
+                         select_random_set_of_streamlines(moved_streamlines, 5000))
+            
         extracted, mat2 = auto_extract(model_bundle, moved_streamlines,
                                        close_centroids_thr=close_centroids_thr,
                                        clean_thr=clean_thr,
@@ -880,16 +888,16 @@ if __name__ == '__main__':
                                      clean_thr=5.,
                                      local_slr=True,
                                      verbose=True,
-                                     disp=False,
+                                     disp=True,
                                      expand_thr=2.,
                                      f_extracted='extracted.pkl',
                                      f_manual='manual.pkl',
                                      f_model='model.pkl')
     plot(bas, 'o')
 
-    load_janice_results(f_extracted='extracted.pkl',
-                        f_manual='manual.pkl',
-                        f_model='model.pkl')
+    # load_janice_results(f_extracted='extracted.pkl',
+    #                     f_manual='manual.pkl',
+    #                     f_model='model.pkl')
 
 #    bas = exp_fancy_data(model_tag='Renauld',
 #                         bundle_type='cst.right',
