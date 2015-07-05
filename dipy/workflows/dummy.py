@@ -25,7 +25,6 @@ def dummy_func_interface(input1, input2, output,
             print(f3)
 
         else:
-
             f3 == join(output, 'out.nii.gz')
             print('Output files')
             print(f3)
