@@ -10,16 +10,21 @@ from dipy.align.transforms import (TranslationTransform3D,
                                    RigidTransform3D,
                                    AffineTransform3D)
 from dipy.viz import window, actor, widget
+from dipy.denoise.nlmeans import nlmeans
+from dipy.denoise.noise_estimate import estimate_sigma
+from dipy.segment.mask import median_otsu
 
 
-def show_slices(data, affine=None, factor=1.5, size=(900, 900), show_slider=True, border = 10):
+def show_slices(data, affine=None, factors=1.5, mins=50, size=(900, 900),
+                show_slider=True, border=10):
 
     renderer = window.renderer()
 
-    def im_actor(data, affine, factor):
-        mean, std = data[data > 0].mean(), data[data > 0].std()
-        value_range = (0, mean + factor * std)
-        image_actor = actor.slice(data, affine)
+    def im_actor(data, affine, factor, min_):
+        mean, std = data[data > min_].mean(), data[data > min_].std()
+        value_range = (min_, mean + factor * std)
+
+        image_actor = actor.slice(data, affine, value_range)
         return image_actor
 
     if isinstance(data, list):
@@ -27,10 +32,12 @@ def show_slices(data, affine=None, factor=1.5, size=(900, 900), show_slider=True
     else:
         data = [data]
         affine = [affine]
+        factors = [factors]
+        mins = [mins]
 
     im_actors = []
     for (i, d) in enumerate(data):
-        ima = im_actor(d, affine[i], factor)
+        ima = im_actor(d, affine[i], factors[i], mins[i])
         ima.set_position(i * ima.shape[0] + border, 0, 0)
         im_actors.append(ima)
         renderer.add(ima)
@@ -45,6 +52,7 @@ def show_slices(data, affine=None, factor=1.5, size=(900, 900), show_slider=True
         for im_actor in im_actors:
             im_actor.display(None, None, z)
 
+
     slider = widget.slider(show_m.iren, show_m.ren,
                            callback=change_slice,
                            min_value=0,
@@ -56,18 +64,72 @@ def show_slices(data, affine=None, factor=1.5, size=(900, 900), show_slider=True
                            color=(1., 1., 1.),
                            selected_color=(0.86, 0.33, 1.))
 
+    global wsize
+    wsize = renderer.GetSize()
+
+    def win_callback(obj, event):
+        global wsize
+        if wsize != obj.GetSize():
+
+            slider.place(renderer)
+            wsize = obj.GetSize()
+
+    show_m.initialize()
+    show_m.add_window_callback(win_callback)
+
     show_m.render()
     show_m.start()
 
 
-def flowless_bet(fname, atlas_fname):
+def flowless_bet(fname, fname_bet, fname_den, n_coil=1,
+                 sigma_factor=1.,
+                 median_radius=4, numpass=4,
+                 autocrop=False, vol_idx=None, dilate=None):
 
-    pass
+    img = nib.load(fname)
+    data = img.get_data()
 
+    print('Sigma estimation')
+    sigma = estimate_sigma(data, N=n_coil)
+
+    print(sigma)
+    print('Non-local means')
+    den = nlmeans(data, sigma=sigma_factor * sigma)
+
+    nib.save(nib.Nifti1Image(den, img.get_affine()), fname_den)
+
+    print('Median Otsu')
+    masked, mask = median_otsu(den, median_radius=median_radius,
+                               numpass=numpass, autocrop=autocrop,
+                               vol_idx=vol_idx, dilate=dilate)
+
+    nib.save(nib.Nifti1Image(masked, img.get_affine()), fname_bet)
+
+
+def flowless_bet_atlas(fname, fatlas_moved, fatlas_moved_mat):
+
+    # /home/eleftherios/Data/mni_icbm152_nlin_asym_09c/mni_icbm152_gm_tal_nlin_asym_09c.nii
+    # /home/eleftherios/Data/mni_icbm152_nlin_asym_09c/mni_icbm152_csf_tal_nlin_asym_09c.nii
+    # /home/eleftherios/Data/mni_icbm152_nlin_asym_09c/mni_icbm152_wm_tal_nlin_asym_09c.nii
+    # /home/eleftherios/Data/mni_icbm152_nlin_asym_09c/mni_icbm152_t1_tal_nlin_asym_09c.nii
+    # /home/eleftherios/Data/mni_icbm152_nlin_asym_09c/mni_icbm152_t1_tal_nlin_asym_09c_mask.nii
+
+    dname_atlas = '/home/eleftherios/Data/mni_icbm152_nlin_asym_09c/'
+    fatlas = pjoin(dname_atlas, 'mni_icbm152_t1_tal_nlin_asym_09c.nii')
+
+    print('Registering atlas to ...')
+    print(fname)
+    affine_registration(fname, fatlas, fatlas_moved, fatlas_moved_mat,
+                        level_iters=[1000, 100, 10],
+                        sigmas=[3.0, 1.0, 0.0],
+                        factors=[4, 2, 1])
 
 
 def affine_registration(static_fname, moving_fname,
-                        moved_fname, moved_mat_fname):
+                        moved_fname, moved_mat_fname,
+                        level_iters=[10000, 1000, 100],
+                        sigmas=[3.0, 1.0, 0.0],
+                        factors=[4, 2, 1], other_fnames=None):
 
     static_img = nib.load(static_fname)
 
@@ -89,12 +151,6 @@ def affine_registration(static_fname, moving_fname,
     nbins = 32
     sampling_prop = None
     metric = MutualInformationMetric(nbins, sampling_prop)
-
-    level_iters = [10000, 1000, 100]
-
-    sigmas = [3.0, 1.0, 0.0]
-
-    factors = [4, 2, 1]
 
     affreg = AffineRegistration(metric=metric,
                                 level_iters=level_iters,
@@ -135,23 +191,48 @@ def affine_registration(static_fname, moving_fname,
 
 
 disp = False
-linear_reg = False
-
+enable_linear_reg = False
+enable_flowless_bet = False
+enable_flowless_bet_atlas = True
 
 print('Calculate MTR')
 
 dname = '/home/eleftherios/Data/badgiu7012/'
 subj_id = 'badgiu7012'
 
-img_mt1 = nib.load(pjoin(dname, subj_id + '_d1_mri.nii'))
-img_mt2 = nib.load(pjoin(dname, subj_id + '_d2_mri.nii'))
+f_mt1 = pjoin(dname, subj_id + '_d1_mri.nii')
+f_mt2 = pjoin(dname, subj_id + '_d2_mri.nii')
+f_mtr = pjoin(dname, subj_id + '_mtr.nii')
+f_t1 = pjoin(dname, subj_id + '_VOLISOTR_mri.nii')
+f_t1_den = pjoin(dname, subj_id + '_VOLISOTR_mri_den.nii')
+f_t1_bet = pjoin(dname, subj_id + '_VOLISOTR_mri_bet.nii')
+f_mt1_to_t1 = pjoin(dname, subj_id + '_d1_mri_to_T1.nii')
+f_mt1_to_t1_mat = pjoin(dname, subj_id + '_d1_mri_to_T1.txt')
+f_atlas_to_t1 = pjoin(dname, subj_id + '_atlas_to_T1.nii')
+f_atlas_to_t1_mat = pjoin(dname, subj_id + '_atlas_to_T1.txt')
 
-print(img_mt1.affine)
-print(img_mt2.affine)
+
+img_mt1 = nib.load(f_mt1)
+img_mt2 = nib.load(f_mt2)
 
 mtr = np.abs(img_mt1.get_data() - img_mt2.get_data())
-nib.save(nib.Nifti1Image(mtr, img_mt1.affine),
-         pjoin(dname, subj_id + '_mtr.nii'))
+nib.save(nib.Nifti1Image(mtr, img_mt1.get_affine()), f_mtr)
+
+if enable_flowless_bet:
+    flowless_bet(f_t1, f_t1_bet, f_t1_den, sigma_factor=5,
+                 median_radius=4, numpass=10)
+
+    img_t1_bet = nib.load(f_t1_bet)
+    img_t1 = nib.load(f_t1)
+    img_t1_den = nib.load(f_t1_den)
+
+    show_slices([img_t1.get_data(), img_t1_bet.get_data(), img_t1_den.get_data()],
+     [img_t1.get_affine(), img_t1_bet.get_affine(), img_t1_den.get_affine()],
+     factors=[2., 2., 2.], mins=[50, 50., 50.])
+
+if enable_flowless_bet_atlas:
+
+    flowless_bet_atlas(f_t1, f_atlas_to_t1, f_atlas_to_t1_mat)
 
 print('MTR shape is ', mtr.shape)
 
@@ -161,18 +242,18 @@ if disp:
     show_slices(mtr, None, 3)
 
 
-if linear_reg:
+if enable_linear_reg:
     print('Registration of MT1 to T1')
     t1 = time()
-    affine_registration(pjoin(dname, subj_id + '_VOLISOTR_mri.nii'),
-                        pjoin(dname, subj_id + '_d1_mri.nii'),
-                        pjoin(dname, subj_id + '_d1_mri_to_T1.nii'),
-                        pjoin(dname, subj_id + '_d1_mri_to_T1.txt'))
+    affine_registration(f_t1,
+                        f_mt1,
+                        f_mt1_to_t1,
+                        f_mt1_to_t1_mat)
 
     print('Finished in %.2f minutes' % (time() - t1) / 60.)
 
-img_mt1_to_t1 = nib.load(pjoin(dname, subj_id + '_d1_mri_to_T1.nii'))
-img_t1 = nib.load(pjoin(dname, subj_id + '_VOLISOTR_mri.nii'))
+    img_mt1_to_t1 = nib.load(f_mt1_to_t1)
 
-show_slices([img_mt1_to_t1.get_data(), img_t1.get_data(), np.abs(img_mt1_to_t1.get_data() - img_t1.get_data())],
-            [img_mt1_to_t1.get_affine(), img_t1.get_affine(), img_t1.get_affine()], factor=1.)
+    show_slices([img_mt1_to_t1.get_data(), img_t1.get_data()],
+                [img_mt1_to_t1.get_affine(), img_t1.get_affine()],
+                factors=[2., 2.], mins=[50, 50.])
