@@ -1,3 +1,4 @@
+import os
 from os.path import join as pjoin
 import numpy as np
 import nibabel as nib
@@ -15,7 +16,7 @@ from dipy.denoise.noise_estimate import estimate_sigma
 from dipy.segment.mask import median_otsu
 
 
-def show_slices(data, affine=None, factors=1.5, mins=50, size=(900, 900),
+def show_slices(fname, factors=1.5, mins=50, size=(900, 900),
                 show_slider=True, border=10):
 
     renderer = window.renderer()
@@ -27,7 +28,8 @@ def show_slices(data, affine=None, factors=1.5, mins=50, size=(900, 900),
         image_actor = actor.slice(data, affine, value_range)
         return image_actor
 
-    if isinstance(data, list):
+    if isinstance(fname, list):
+
         pass
     else:
         data = [data]
@@ -81,10 +83,10 @@ def show_slices(data, affine=None, factors=1.5, mins=50, size=(900, 900),
     show_m.start()
 
 
-def flowless_bet(fname, fname_bet, fname_den, n_coil=1,
-                 sigma_factor=1.,
-                 median_radius=4, numpass=4,
-                 autocrop=False, vol_idx=None, dilate=None):
+def bet_extreme_denoising(fname, fname_bet, fname_den, n_coil=1,
+                          sigma_factor=1.,
+                          median_radius=4, numpass=4,
+                          autocrop=False, vol_idx=None, dilate=None):
 
     img = nib.load(fname)
     data = img.get_data()
@@ -106,7 +108,8 @@ def flowless_bet(fname, fname_bet, fname_den, n_coil=1,
     nib.save(nib.Nifti1Image(masked, img.get_affine()), fname_bet)
 
 
-def flowless_bet_atlas(fname, fatlas_moved, fatlas_moved_mat):
+def flowless_bet_atlas(fname, fname_bet, median_radius=4, numpass=4,
+                       autocrop=False, vol_idx=None, dilate=None):
 
     # /home/eleftherios/Data/mni_icbm152_nlin_asym_09c/mni_icbm152_gm_tal_nlin_asym_09c.nii
     # /home/eleftherios/Data/mni_icbm152_nlin_asym_09c/mni_icbm152_csf_tal_nlin_asym_09c.nii
@@ -116,20 +119,55 @@ def flowless_bet_atlas(fname, fatlas_moved, fatlas_moved_mat):
 
     dname_atlas = '/home/eleftherios/Data/mni_icbm152_nlin_asym_09c/'
     fatlas = pjoin(dname_atlas, 'mni_icbm152_t1_tal_nlin_asym_09c.nii')
+    fgm = pjoin(dname_atlas, 'mni_icbm152_gm_tal_nlin_asym_09c.nii')
+    fwm = pjoin(dname_atlas, 'mni_icbm152_wm_tal_nlin_asym_09c.nii')
+    fcsf = pjoin(dname_atlas, 'mni_icbm152_csf_tal_nlin_asym_09c.nii')
+
+    subj_dir = os.path.dirname(fname)
+    fgm_moved = pjoin(subj_dir, 'mni_icbm152_gm_tal_nlin_asym_09c_moved.nii')
+    fwm_moved = pjoin(subj_dir, 'mni_icbm152_wm_tal_nlin_asym_09c_moved.nii')
+    fcsf_moved = pjoin(subj_dir, 'mni_icbm152_csf_tal_nlin_asym_09c_moved.nii')
+    fatlas_moved = pjoin(subj_dir, 'mni_icbm152_t1_tal_nlin_asym_09c.nii')
+    fatlas_moved_mat = pjoin(subj_dir, 'mni_icbm152_t1_tal_nlin_asym_09c_mat.txt')
 
     print('Registering atlas to ...')
     print(fname)
     affine_registration(fname, fatlas, fatlas_moved, fatlas_moved_mat,
                         level_iters=[1000, 100, 10],
                         sigmas=[3.0, 1.0, 0.0],
-                        factors=[4, 2, 1])
+                        factors=[4, 2, 1],
+                        other_fnames=[fcsf, fgm, fwm],
+                        other_fnames_moved=[fcsf_moved, fgm_moved, fwm_moved])
+
+    print('Loading and combining moved csf, gm and wm atlas')
+    img_csf = nib.load(fcsf_moved)
+    img_gm = nib.load(fgm_moved)
+    img_wm = nib.load(fwm_moved)
+
+    container = img_csf.get_data() + img_gm.get_data() + img_wm.get_data()
+
+    img = nib.load(fname)
+    data = img.get_data()
+
+    print('Punched most scalp out')
+    data[container == 0] = 0
+    # nib.save(nib.Nifti1Image(data, img.get_affine()), fname_bet)
+
+    print('Median otsu')
+    masked, mask = median_otsu(data, median_radius=median_radius,
+                               numpass=numpass, autocrop=autocrop,
+                               vol_idx=vol_idx, dilate=dilate)
+
+    nib.save(nib.Nifti1Image(masked, img.get_affine()), fname_bet)
 
 
 def affine_registration(static_fname, moving_fname,
                         moved_fname, moved_mat_fname,
                         level_iters=[10000, 1000, 100],
                         sigmas=[3.0, 1.0, 0.0],
-                        factors=[4, 2, 1], other_fnames=None):
+                        factors=[4, 2, 1],
+                        other_fnames=None,
+                        other_fnames_moved=None):
 
     static_img = nib.load(static_fname)
 
@@ -189,10 +227,21 @@ def affine_registration(static_fname, moving_fname,
 
     np.savetxt(moved_mat_fname, affine.affine)
 
+    if other_fnames is not None:
+        for (i, other_fname) in enumerate(other_fnames):
+
+            other_img = nib.load(other_fname)
+            other_data = other_img.get_data()
+            other_data_moved = affine.transform(other_data)
+
+            nib.save(nib.Nifti1Image(other_data_moved, static_grid2world),
+                     other_fnames_moved[i])
+
 
 disp = False
+enable_mtr = False
 enable_linear_reg = False
-enable_flowless_bet = False
+enable_bet_extreme_denoising = False
 enable_flowless_bet_atlas = True
 
 print('Calculate MTR')
@@ -208,33 +257,23 @@ f_t1_den = pjoin(dname, subj_id + '_VOLISOTR_mri_den.nii')
 f_t1_bet = pjoin(dname, subj_id + '_VOLISOTR_mri_bet.nii')
 f_mt1_to_t1 = pjoin(dname, subj_id + '_d1_mri_to_T1.nii')
 f_mt1_to_t1_mat = pjoin(dname, subj_id + '_d1_mri_to_T1.txt')
-f_atlas_to_t1 = pjoin(dname, subj_id + '_atlas_to_T1.nii')
-f_atlas_to_t1_mat = pjoin(dname, subj_id + '_atlas_to_T1.txt')
 
 
-img_mt1 = nib.load(f_mt1)
-img_mt2 = nib.load(f_mt2)
+if enable_mtr:
+    print('Calculate MTR ...')
+    img_mt1 = nib.load(f_mt1)
+    img_mt2 = nib.load(f_mt2)
+    mtr = np.abs(img_mt1.get_data() - img_mt2.get_data())
+    print('MTR shape is ', mtr.shape)
+    nib.save(nib.Nifti1Image(mtr, img_mt1.get_affine()), f_mtr)
 
-mtr = np.abs(img_mt1.get_data() - img_mt2.get_data())
-nib.save(nib.Nifti1Image(mtr, img_mt1.get_affine()), f_mtr)
-
-if enable_flowless_bet:
-    flowless_bet(f_t1, f_t1_bet, f_t1_den, sigma_factor=5,
-                 median_radius=4, numpass=10)
-
-    img_t1_bet = nib.load(f_t1_bet)
-    img_t1 = nib.load(f_t1)
-    img_t1_den = nib.load(f_t1_den)
-
-    show_slices([img_t1.get_data(), img_t1_bet.get_data(), img_t1_den.get_data()],
-     [img_t1.get_affine(), img_t1_bet.get_affine(), img_t1_den.get_affine()],
-     factors=[2., 2., 2.], mins=[50, 50., 50.])
+# if enable_flowless_bet:
+#     bet_extreme_denoising(f_t1, f_t1_bet, f_t1_den, sigma_factor=5,
+#                           median_radius=4, numpass=10)
 
 if enable_flowless_bet_atlas:
 
-    flowless_bet_atlas(f_t1, f_atlas_to_t1, f_atlas_to_t1_mat)
-
-print('MTR shape is ', mtr.shape)
+    flowless_bet_atlas(f_t1, f_t1_bet)
 
 if disp:
     show_slices(img_mt1.get_data(), None, 3)
@@ -245,10 +284,8 @@ if disp:
 if enable_linear_reg:
     print('Registration of MT1 to T1')
     t1 = time()
-    affine_registration(f_t1,
-                        f_mt1,
-                        f_mt1_to_t1,
-                        f_mt1_to_t1_mat)
+    affine_registration(f_t1, f_mt1,
+                        f_mt1_to_t1, f_mt1_to_t1_mat)
 
     print('Finished in %.2f minutes' % (time() - t1) / 60.)
 
