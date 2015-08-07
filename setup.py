@@ -212,7 +212,8 @@ def main(**extra_args):
                           'dipy.sims',
                           'dipy.sims.tests',
                           'dipy.denoise',
-                          'dipy.denoise.tests'],
+                          'dipy.denoise.tests',
+                          'dipy.workflows'],
 
           ext_modules = EXTS,
           # The package_data spec has no effect for me (on python 2.6) -- even
@@ -229,7 +230,8 @@ def main(**extra_args):
           scripts      = [pjoin('bin', 'dipy_peak_extraction'),
                           pjoin('bin', 'dipy_fit_tensor'),
                           pjoin('bin', 'dipy_sh_estimate'),
-                          pjoin('bin', 'dipy_quickbundles')],
+                          pjoin('bin', 'dipy_quickbundles'),
+                          pjoin('bin', 'dipy_recognize_bundles')],
           cmdclass = cmdclass,
           **extra_args
         )
