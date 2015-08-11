@@ -92,7 +92,8 @@ def test_greyscale_image():
     npt.assert_equal(mu_upd != mu, True)
     npt.assert_equal(sigmasq_upd != sigmasq, True)
 
-    icm_segmentation = icm.icm_ising(neglogl, beta, initial_segmentation)
+    icm_segmentation, energy = icm.icm_ising(neglogl,
+                                             beta, initial_segmentation)
     npt.assert_equal(np.abs(np.sum(icm_segmentation)) != 0, True)
     npt.assert_equal(icm_segmentation.max(), nclasses - 1)
     npt.assert_equal(icm_segmentation.min(), 0)
@@ -233,8 +234,9 @@ def test_segment_hmrf():
 
 if __name__ == '__main__':
     pass
+    test_greyscale_image()
     # npt.run_module_suite()
     # initial_segmentation, final_segmentation = test_greyscale_image()
-    seg_init, final_segmentation, PLY = test_greyscale_iter()
+    # seg_init, final_segmentation, PLY = test_greyscale_iter()
     # seg_init, final_segmentation, PLY = test_square_iter()
     # T1init, T1final, PLY = test_segment_hmrf()
