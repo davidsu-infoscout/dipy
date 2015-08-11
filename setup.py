@@ -83,6 +83,10 @@ EXTS = []
 ext_kwargs = {'include_dirs':[np.get_include()]}
 ext_kwargs['include_dirs'].append('src')
 
+from numpy.distutils.misc_util import get_info
+ext_kwargs['library_dirs'] = get_info('npymath')['library_dirs']
+ext_kwargs['libraries'] = get_info('npymath')['libraries']
+
 for modulename, other_sources, language in (
     ('dipy.reconst.peak_direction_getter', [], 'c'),
     ('dipy.reconst.recspeed', [], 'c'),
