@@ -16,11 +16,13 @@ single_slice = np.load(fname)
 nslices = 5
 image = np.zeros(shape=single_slice.shape + (nslices,))
 image[..., :nslices] = single_slice[..., None]
+image += np.random.normal(0.01, 0.001, image.shape)
+
 
 # Execute the segmentation
 nclasses = 4
 beta = np.float64(0.0)
-max_iter = 4
+max_iter = 5
 
 square = np.zeros((256, 256, 3))
 square[42:213, 42:213, :] = 3
@@ -103,6 +105,7 @@ def test_greyscale_image():
 
 def test_greyscale_iter():
 
+
     com = ConstantObservationModel()
     icm = IteratedConditionalModes()
 
@@ -113,9 +116,9 @@ def test_greyscale_iter():
     npt.assert_equal(initial_segmentation.max(), nclasses - 1)
     npt.assert_equal(initial_segmentation.min(), 0)
 
-#    mu, sigma, sigmasq = com.seg_stats(image, initial_segmentation, nclasses)
-#    print('initial mu:', mu)
-#    print('initial var:', sigmasq)
+    mu, sigma, sigmasq = com.seg_stats(image, initial_segmentation, nclasses)
+    print('initial mu:', mu)
+    print('initial var:', sigmasq)
 
     npt.assert_equal(mu.all() >= 0, True)
     npt.assert_equal(sigmasq.all() >= 0, True)
@@ -125,19 +128,25 @@ def test_greyscale_iter():
 
 #    energy_pre = np.zeros_like(image)
 
+    figure()
+    imshow(seg_init[..., 1])
+
     for i in range(max_iter):
 
-        print('iteration: ', i)
+        print('Iteration: ' + str(i))
+        print('\n')
 
         PLN = com.prob_neighborhood(image, initial_segmentation, beta,
                                     nclasses)
         npt.assert_equal(PLN.all() >= 0.0, True)
+
         PLY = com.prob_image(image, nclasses, mu, sigmasq, PLN)
         npt.assert_equal(PLY.all() >= 0.0, True)
 
         mu_upd, sigmasq_upd = com.update_param(image, PLY, mu, nclasses)
         npt.assert_equal(mu_upd.all() >= 0.0, True)
         npt.assert_equal(sigmasq_upd.all() >= 0.0, True)
+
         negll = com.negloglikelihood(image, mu_upd, sigmasq_upd, nclasses)
         npt.assert_equal(negll.all() >= 0.0, True)
 
@@ -152,62 +161,21 @@ def test_greyscale_iter():
 #            npt.assert_equal(energy[100, 100, 2] <= energy_pre[100, 100, 2], True)
 #        energy_pre = energy.copy()
 
+#        figure()
+#        plt.imshow(negll[..., 1, 0])
+#
+#        figure()
+#        plt.imshow(negll[..., 1, 1])
+#
+#        figure()
+#        plt.imshow(negll[..., 1, 2])
+#
+#        figure()
+#        plt.imshow(negll[..., 1, 3])
+
         figure()
         imshow(final_segmentation[..., 1])
 
-        initial_segmentation = final_segmentation.copy()
-        mu = mu_upd.copy()
-        sigmasq = sigmasq_upd.copy()
-
-    difference_map = np.abs(seg_init - final_segmentation)
-    npt.assert_equal(np.abs(np.sum(difference_map)) != 0, True)
-
-    return seg_init, final_segmentation, PLY
-
-
-def test_square_iter():
-
-    com = ConstantObservationModel()
-    icm = IteratedConditionalModes()
-
-    initial_segmentation = square.copy()
-    npt.assert_equal(initial_segmentation.max(), nclasses - 1)
-    npt.assert_equal(initial_segmentation.min(), 0)
-
-    mu, sigma, sigmasq = com.seg_stats(square_1, initial_segmentation,
-                                       nclasses)
-    npt.assert_equal(mu.all() >= 0, True)
-    npt.assert_equal(sigmasq.all() >= 0, True)
-
-    final_segmentation = np.empty_like(square_1)
-    seg_init = initial_segmentation.copy()
-
-#    energy_pre = np.zeros_like(image)
-
-    for i in range(max_iter):
-
-        print("Iteration: %d"%(max_iter,))
-
-        PLN = com.prob_neighborhood(square_1, initial_segmentation, beta,
-                                    nclasses)
-        npt.assert_equal(PLN.all() >= 0.0, True)
-        PLY = com.prob_image(square_1, nclasses, mu, sigmasq, PLN)
-        npt.assert_equal(PLY.all() >= 0.0, True)
-
-        mu_upd, sigmasq_upd = com.update_param(square_1, PLY, mu, nclasses)
-        npt.assert_equal(mu_upd.all() >= 0.0, True)
-        npt.assert_equal(sigmasq_upd.all() >= 0.0, True)
-        negll = com.negloglikelihood(square_1, mu_upd, sigmasq_upd, nclasses)
-        npt.assert_equal(negll.all() >= 0.0, True)
-        final_segmentation, energy = icm.icm_ising(negll, beta,
-                                                   initial_segmentation)
-
-#        if i > 0:
-#            npt.assert_equal(energy[100, 100, 2] <= energy_pre[100, 100, 2], True)
-#        energy_pre = energy.copy()
-
-#        plt.figure()
-#        plt.imshow(final_segmentation[..., 1])
 
         initial_segmentation = final_segmentation.copy()
         mu = mu_upd.copy()
@@ -217,26 +185,12 @@ def test_square_iter():
     npt.assert_equal(np.abs(np.sum(difference_map)) != 0, True)
 
     return seg_init, final_segmentation, PLY
-
-
-def test_segment_hmrf():
-
-    imgseg = ImageSegmenter()
-
-    T1coronal_init, T1coronal_final, PLY = imgseg.segment_hmrf(image, nclasses,
-                                                          beta, max_iter)
-
-    npt.assert_equal(T1coronal_final.max(), nclasses - 1)
-    npt.assert_equal(T1coronal_final.min(), 0)
-
-    return T1coronal_init, T1coronal_final, PLY
 
 
 if __name__ == '__main__':
-    pass
-    test_greyscale_image()
+    # test_greyscale_image()
     # npt.run_module_suite()
     # initial_segmentation, final_segmentation = test_greyscale_image()
-    # seg_init, final_segmentation, PLY = test_greyscale_iter()
+    seg_init, final_segmentation, PLY = test_greyscale_iter()
     # seg_init, final_segmentation, PLY = test_square_iter()
     # T1init, T1final, PLY = test_segment_hmrf()
