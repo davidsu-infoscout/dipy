@@ -121,7 +121,7 @@ class ConstantObservationModel(object):
         print('GM         ' + str(nloglike[147,129,1,2]))
         print('WM         ' + str(nloglike[147,129,1,3]))
 
-        print('### Negloglikelihood vox(147, 129, 1) GM')
+        print('### Negloglikelihood vox(61, 152, 1) GM')
         print('BK         ' + str(nloglike[61,152,1,0]))
         print('CSF        ' + str(nloglike[61,152,1,1]))
         print('GM         ' + str(nloglike[61,152,1,2]))
@@ -202,10 +202,7 @@ class ConstantObservationModel(object):
         """
 
         cdef:
-            #double[:, :, :, :] P_L_N = np.zeros(image.shape + (nclasses,),
-            #                                    dtype=np.float64)
-            double[:, :, :] P_L_N = np.zeros(image.shape,
-                                                dtype=np.float64)
+            double[:, :, :] P_L_N = np.zeros(image.shape, dtype=np.float64)
             cnp.npy_intp classid = 0
 
         PLN_norm = np.zeros(image.shape, dtype=np.float64)
@@ -215,7 +212,6 @@ class ConstantObservationModel(object):
             _prob_neighb_perclass(image, seg, beta, classid, P_L_N)
 
             # Eq 2.18 of Stan Z. Li book
-            #PLN[:, :, :, classid] = np.array(P_L_N[:, :, :, classid])
             PLN[:, :, :, classid] = np.array(P_L_N)
             PLN[:, :, :, classid] = np.exp(- PLN[:, :, :, classid])
             PLN_norm += PLN[:, :, :, classid]
@@ -522,13 +518,20 @@ class IteratedConditionalModes(object):
         seg : array, shape (X, Y, Z)
             initial segmentation. On segput this segmentation will change by one
             iteration of the ICM algorithm
+
+        Returns
+        -------
+        new_seg : array, shape (X, Y, Z)
+            final segmentation
         """
 
         energy = np.zeros(nloglike.shape[:3]).astype(np.float64)
 
-        _icm_ising(nloglike, beta, seg, energy)
+        new_seg = np.zeros_like(seg)
 
-        return seg, energy
+        _icm_ising(nloglike, beta, seg, energy, new_seg)
+
+        return new_seg, energy
 
 
 cdef void _initialize_maximum_likelihood(double[:,:,:,:] nloglike, double[:,:,:] seg) nogil:
@@ -565,7 +568,8 @@ cdef void _initialize_maximum_likelihood(double[:,:,:,:] nloglike, double[:,:,:]
                 seg[x,y,z] = best_class
 
 
-cdef void _icm_ising(double[:,:,:,:] nloglike, double beta, double[:,:,:] seg, double[:,:,:] energy) nogil:
+cdef void _icm_ising(double[:,:,:,:] nloglike, double beta, double[:,:,:] seg,
+                     double[:,:,:] energy, double[:,:,:] new_seg) nogil:
     """ Executes one iteration of the ICM algorithm for MRF MAP estimation
     The prior distribution of the MRF is a Gibbs distribution with the
     Potts/Ising model with parameter `beta`:
@@ -585,7 +589,10 @@ cdef void _icm_ising(double[:,:,:,:] nloglike, double beta, double[:,:,:] seg, d
 
     Returns
     -------
-    seg :  3D array. Final segmentation.
+    energy : array
+        energy for every voxel
+    new_seg :  3D array
+        new segmentation
     """
 
     cdef:
@@ -611,11 +618,6 @@ cdef void _icm_ising(double[:,:,:,:] nloglike, double beta, double[:,:,:] seg, d
                 for k in range(nclasses):
                     this_energy = nloglike[x, y, z, k]
 
-#                    if this_energy == -1.7976931348623157e+100:
-#                        min_energy = this_energy
-#                        best_class = k
-#                        break
-
                     # Accumulate Gibbs energy for label k
                     for i in range(nneigh):
                         xx = x + dX[i]
@@ -628,7 +630,6 @@ cdef void _icm_ising(double[:,:,:,:] nloglike, double beta, double[:,:,:] seg, d
                         if((zz < 0) or (zz >= nz)):
                             continue
 
-                        #if nloglike[xx, yy, zz, k] > -1.7976931348623157e+100:
                         if seg[xx, yy, zz] == k:
                             this_energy -= beta
                         else:
@@ -639,7 +640,7 @@ cdef void _icm_ising(double[:,:,:,:] nloglike, double beta, double[:,:,:] seg, d
                         min_energy = this_energy
                         best_class = k
 
-                seg[x, y, z] = best_class
+                new_seg[x, y, z] = best_class
                 energy[x, y, z] = min_energy
 
 
@@ -664,7 +665,7 @@ class ImageSegmenter(object):
         neglogl = observationModel.negloglikelihood(image, mu, sigmasq, nclasses)
         print("Initializing segmentation")
         initial_segmentation = posteriorMaximizer.initialize_maximum_likelihood(neglogl)
-        print("Calculating parameters for initital segmentation")
+        print("Calculating parameters for initial segmentation")
         mu, sigma, sigmasq = observationModel.seg_stats(image, initial_segmentation, nclasses)
 
         final_seg = np.empty_like(image)
