@@ -702,6 +702,7 @@ class ImageSegmenter(object):
         self.pves = []
         self.energies = []
         self.energies_sum = []
+        self.verbose = verbose
 
         pass
 
