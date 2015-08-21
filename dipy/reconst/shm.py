@@ -978,24 +978,17 @@ def sh_to_ap(coeffs_mtx, normal_factor=0.00001):
     Where dim C is made of a flattened lxm coeffecient, where l are the SH levels.
     and m = 2l+1.
     So l=1 has 1 coeffecient, l=2 has 5, ... l=8 has 17 and so on.
-    A l=2 SH coeffecient matrix will then be composed of a IxJxKx6 volume. 
+    A l=2 SH coeffecient matrix will then be composed of a IxJxKx6 volume.
 
-    The final AP image is then normalized by log(AP/normal_factor). 
-    All values < 0 are discarded. 
+    The final AP image is then normalized by log(AP/normal_factor).
+    All values < 0 are discarded.
 
-
-
-    References
-    ----------
-    .. [1]  Dell’Acqua, F., Lacerda, L., Catani, M., Simmons, A., 2014. 
-            Anisotropic Power Maps: A diffusion contrast to reveal low anisotropy tissues from HARDI data, 
-            in: Proceedings of International Society for Magnetic Resonance in Medicine. Milan, Italy.
 
     Parameters
     ----------
     coeffs_mtx : ndarray
         A ndarray where the last dimension is the
-        SH coeff estimates for that voxel. 
+        SH coeff estimates for that voxel.
     normal_factor: float
         The value to normalize the ap values. Default is 10^-5.
 
@@ -1040,5 +1033,5 @@ def sh_to_ap(coeffs_mtx, normal_factor=0.00001):
 
     # zero all values < 0
     log_ap[log_ap<0] = 0
-    
+
     return log_ap

@@ -52,6 +52,16 @@ response, ratio = auto_response(gtab, data, roi_radius=10, fa_thr=0.7)
 
 csd_model = ConstrainedSphericalDeconvModel(gtab, response)
 
+csd_fit = csd_model.fit(data, mask)
+
+from dipy.reconst.shm import sh_to_ap
+
+ap = sh_to_ap(csd_fit.shm_coeff)
+
+import nibabel as nib
+
+nib.save(nib.Nifti1Image(ap, img.get_affine()), 'power_map.nii.gz')
+
 """
 Next, we use ``peaks_from_model`` to fit the data and calculated the fiber
 directions in all voxels.
@@ -159,8 +169,6 @@ Fibernavigator_ or another tool for medical visualization.
 
 Finally, let's save the streamlines as a (.trk) file and FA as a Nifti image.
 """
-
-import nibabel as nib
 
 hdr = nib.trackvis.empty_header()
 hdr['voxel_size'] = img.get_header().get_zooms()[:3]
