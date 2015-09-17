@@ -244,3 +244,8 @@ cdef cnp.npy_intp copy_block_3d(double * dest,
             memcpy(&dest[i * J * K  + j * K], &source[i + min_i, j + min_j, min_k], K * sizeof(double))
 
     return 1
+
+
+def convolve_5d(double [:, :, :, ::1] odfs, double [:, :, ::1] kernel):
+
+    pass
