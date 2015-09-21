@@ -8,6 +8,8 @@ from copy import deepcopy
 from os.path import join as pjoin, dirname
 from glob import glob
 
+os.environ["CC"] = "clang"
+
 # BEFORE importing distutils, remove MANIFEST. distutils doesn't properly
 # update it when the contents of directories change.
 if os.path.exists('MANIFEST'): os.remove('MANIFEST')
@@ -102,6 +104,7 @@ for modulename, other_sources, language in (
     ('dipy.segment.clusteringspeed', [], 'c'),
     ('dipy.segment.clustering_algorithms', [], 'c'),
     ('dipy.denoise.denspeed', [], 'c'),
+    ('dipy.denoise.kernel', [], 'c'),
     ('dipy.align.vector_fields', [], 'c'),
     ('dipy.align.sumsqdiff', [], 'c'),
     ('dipy.align.expectmax', [], 'c'),
