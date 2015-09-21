@@ -42,7 +42,7 @@ cdef double [:] EulerAngles(double [:] input):
 	return output
 
 cdef double [:,:] R(double [:] input):
-	
+
 	cdef:
 		double beta
 		double gamma
@@ -122,6 +122,17 @@ cdef class EnhancementKernel:
 		return kernelval
 
 	cdef double [:] coordinateMap(self, double x, double y, double z, double beta, double gamma):
+     """ One line description
+
+     Parameters
+     ----------
+     x : double
+
+     Returns
+     -------
+     c : array of double
+         array of coordinates for kernel
+     """
 
 		cdef:
 			double [:] c
