@@ -18,8 +18,10 @@ cdef class EnhancementKernel:
     cdef double [:,:] orientations
     cdef double [:,:,:,:,::1] lookuptable
 
-    def __init__(self, D33, D44, t, force_recompute=False, orientations=None):
-        """ Compute a look-up table for the contextual enhancement kernel
+    def __init__(self, D33, D44, t, force_recompute=False, 
+                    orientations=None):
+        """ Compute a look-up table for the contextual 
+            enhancement kernel
 
         Parameters
         ----------
@@ -30,9 +32,13 @@ cdef class EnhancementKernel:
         t   : float
             Diffusion time
         force_recompute : boolean
-            Always compute the look-up table even if it is available in cache. Default is False.
+            Always compute the look-up table even if it is available 
+            in cache. Default is False.
         orientations : int or array of orientations
-            Specify the number of orientations to be used with electrostatic repulsion, or provide a list of orientations. The default orientation scheme is 'repulsion100'.
+            Specify the number of orientations to be used with 
+            electrostatic repulsion, or provide a list of 
+            orientations. The default orientation scheme 
+            is 'repulsion100'.
         """
 
         self.D33 = D33
@@ -42,7 +48,8 @@ cdef class EnhancementKernel:
         sphere = get_sphere('repulsion100')
         self.orientations = sphere.vertices
 
-        kernellutpath = "%s/kernel_d33@%4.2f_d44@%4.2f_t@%4.2f.dat" % (gettempdir(),D33,D44,t)
+        kernellutpath = "%s/kernel_d33@%4.2f_d44@%4.2f_t@%4.2f.dat" \
+                        % (gettempdir(),D33,D44,t)
 
         # if LUT exists, load
         if not force_recompute and os.path.isfile(kernellutpath):
@@ -65,10 +72,16 @@ cdef class EnhancementKernel:
         """
         return self.lookuptable
 
+    def get_orientatons(self):
+        """ Return the orientations.
+        """
+        return self.orientations
+
     @cython.wraparound(False)
     @cython.boundscheck(False)
     cdef void create_lookup_table(self):
-        """ Compute the look-up table based on the parameters set during class initialization
+        """ Compute the look-up table based on the parameters set 
+            during class initialization
         """
         self.estimate_kernel_size()
 
@@ -76,11 +89,10 @@ cdef class EnhancementKernel:
         cdef int N = self.kernelsize
         cdef int hn = (N-1)/2
 
-        OR = 1
-
         x = np.array([0, 0, 0], dtype=np.float64)
         y = np.array([0, 0, 0], dtype=np.float64)
-        cdef double [:,:,:,:,::1] lookuptablelocal = np.zeros((OR,OR,N,N,N))
+        cdef double [:,:,:,:,::1] lookuptablelocal = \
+                                np.zeros((OR,OR,N,N,N))
 
         for angv in range(0, OR):
             print angv
@@ -94,12 +106,17 @@ cdef class EnhancementKernel:
                             x[1] = yp
                             x[2] = zp
                             #print(self.k2(x,y,r,v),xp+hn,yp+hn,zp+hn)
-                            lookuptablelocal[angv,angr,xp+hn,yp+hn,zp+hn] = self.k2(x,y,r,v)
+                            lookuptablelocal[angv,
+                                            angr,
+                                            xp+hn,
+                                            yp+hn,
+                                            zp+hn] = self.k2(x,y,r,v)
 
         self.lookuptable = lookuptablelocal
 
     def estimate_kernel_size(self):
-        """ Estimates the dimensions the kernel should have based on the kernel parameters. 
+        """ Estimates the dimensions the kernel should 
+            have based on the kernel parameters. 
         """
 
         x = np.array([0, 0, 0], dtype=np.float64)
@@ -127,8 +144,10 @@ cdef class EnhancementKernel:
 
         self.kernelsize = N
 
-    def k2(self, double [:] x, double [:] y, double [:] r, double [:] v):
-        """ Evaluate the kernel at position x relative to position y, with orientation r relative to orientation v.
+    def k2(self, double [:] x, double [:] y, 
+                double [:] r, double [:] v):
+        """ Evaluate the kernel at position x relative to 
+            position y, with orientation r relative to orientation v.
         """
         cdef:
             double [:] a
@@ -145,15 +164,18 @@ cdef class EnhancementKernel:
         arg2p = np.dot(transm,r)
         arg2 = euler_angles(arg2p)
 
-        c = self.coordinate_map(arg1[0], arg1[1], arg1[2], arg2[0], arg2[1])
+        c = self.coordinate_map(arg1[0], arg1[1], arg1[2], 
+                                arg2[0], arg2[1])
         kernelval = self.kernel(c)
 
         return kernelval
 
     @cython.wraparound(False)
     @cython.boundscheck(False)
-    cdef double [:] coordinate_map(self, double x, double y, double z, double beta, double gamma):
-        """ One line description
+    cdef double [:] coordinate_map(self, double x, double y, 
+                                    double z, double beta, 
+                                    double gamma):
+        """ Compute a coordinate map for the kernel
 
         Parameters
         ----------
@@ -193,9 +215,15 @@ cdef class EnhancementKernel:
             sg = sin(gamma)
             cotq2 = cot(q/2)
 
-            c[0] = -0.5*z*beta*cg + x*(1-(beta*beta*cg*cg*(1 - 0.5*q*cotq2))/(q*q)) - (y*beta*beta*cg*(1-0.5*q*cotq2)*sg)/(q*q)
-            c[1] = -0.5*z*beta*sg - (x*beta*beta*cg*(1-0.5*q*cotq2)*sg)/(q*q) + y*(1-(beta*beta*(1-0.5*q*cotq2)*sg*sg)/(q*q))
-            c[2] = 0.5*x*beta*cg + 0.5*y*beta*sg + z*(1+((1-0.5*q*cotq2)*(-beta*beta*cg*cg - beta*beta*sg*sg))/(q*q))
+            c[0] = -0.5*z*beta*cg + \
+                    x*(1-(beta*beta*cg*cg*(1 - 0.5*q*cotq2))/(q*q)) - \
+                     (y*beta*beta*cg*(1-0.5*q*cotq2)*sg)/(q*q)
+            c[1] = -0.5*z*beta*sg - \
+                    (x*beta*beta*cg*(1-0.5*q*cotq2)*sg)/(q*q) + \
+                    y*(1-(beta*beta*(1-0.5*q*cotq2)*sg*sg)/(q*q))
+            c[2] = 0.5*x*beta*cg + 0.5*y*beta*sg + \
+                    z*(1+((1-0.5*q*cotq2)*(-beta*beta*cg*cg - \
+                    beta*beta*sg*sg))/(q*q))
             c[3] = beta * (-sg)
             c[4] = beta * cg
             c[5] = 0
@@ -207,7 +235,15 @@ cdef class EnhancementKernel:
     cdef double kernel(self, double [:] c):
         """ Evaluate the kernel based on the coordinate map.
         """
-        return 1/(8*sqrt(2))*sqrt(PI)*self.t*sqrt(self.t*self.D33)*sqrt(self.D33*self.D44) * 1/(16*PI*PI*self.D33*self.D33*self.D44*self.D44*self.t*self.t*self.t*self.t) * exp(-sqrt( (c[0]*c[0] + c[1]*c[1])/(self.D33*self.D44) + (c[2]*c[2]/self.D33 + (c[3]*c[3]+c[4]*c[4])/self.D44)*(c[2]*c[2]/self.D33 + (c[3]*c[3]+c[4]*c[4])/self.D44) + c[5]*c[5]/self.D44)/(4*self.t));
+        return 1/(8*sqrt(2))*sqrt(PI)*self.t* \
+                sqrt(self.t*self.D33)*sqrt(self.D33*self.D44) * \
+                1/(16*PI*PI*self.D33*self.D33*self.D44*self.D44* \
+                self.t*self.t*self.t*self.t) * \
+                exp(-sqrt( (c[0]*c[0] + c[1]*c[1])/(self.D33*self.D44) \
+                 + (c[2]*c[2]/self.D33 + \
+                 (c[3]*c[3]+c[4]*c[4])/self.D44)*(c[2]*c[2]/self.D33 + \
+                  (c[3]*c[3]+c[4]*c[4])/self.D44) + \
+                  c[5]*c[5]/self.D44)/(4*self.t));
 
 
 #### MATH FUNCTIONS ####
@@ -282,9 +318,3 @@ cdef double [:,:] R(double [:] input):
     output[2,2] = cb
 
     return output
-
-
-
-
-
-

@@ -8,7 +8,7 @@ from copy import deepcopy
 from os.path import join as pjoin, dirname
 from glob import glob
 
-# os.environ["CC"] = "clang"
+os.environ["CC"] = "clang"
 
 # BEFORE importing distutils, remove MANIFEST. distutils doesn't properly
 # update it when the contents of directories change.
@@ -105,6 +105,7 @@ for modulename, other_sources, language in (
     ('dipy.segment.clustering_algorithms', [], 'c'),
     ('dipy.denoise.denspeed', [], 'c'),
     ('dipy.denoise.kernel', [], 'c'),
+    ('dipy.denoise.convolution5d', [], 'c'),
     ('dipy.align.vector_fields', [], 'c'),
     ('dipy.align.sumsqdiff', [], 'c'),
     ('dipy.align.expectmax', [], 'c'),
