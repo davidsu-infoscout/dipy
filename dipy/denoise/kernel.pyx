@@ -265,18 +265,21 @@ cdef double cot(double d):
 cdef extern from "complex.h":
     double cargl(double complex)
 
-cdef double [:] euler_angles(double [:] input):
+# @cython.cdivision(True)
+@cython.wraparound(False)
+@cython.boundscheck(False)
+cdef void euler_angles(double [:] input, double [:] final_output) nogil:
     cdef:
         double x
         double y
         double z
-        double [:] output
+        double output[2]
         double complex complex_xy
 
     x = input[0]
     y = input[1]
     z = input[2]
-    output = np.zeros(2)
+    # output = np.zeros(2)
 
     # handle the case (0,0,1)
     if x*x < 10e-6 and y*y < 10e-6 and (z-1)*(z-1) < 10e-6:
@@ -294,7 +297,8 @@ cdef double [:] euler_angles(double [:] input):
         complex_xy = complex(x,y)
         output[1] = cargl(complex_xy)
 
-    return output
+    final_output[0] = output[0]
+    final_output[1] = output[1]
 
 cdef double [:,:] R(double [:] input):
 
