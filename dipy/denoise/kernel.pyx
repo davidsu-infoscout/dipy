@@ -15,12 +15,12 @@ cdef class EnhancementKernel:
     cdef double t
     cdef int kernelsize
     cdef double kernelmax
-    cdef double [:,:] orientations
-    cdef double [:,:,:,:,::1] lookuptable
+    cdef double [:, :] orientations
+    cdef double [:, :, :, :, ::1] lookuptable
 
-    def __init__(self, D33, D44, t, force_recompute=False, 
+    def __init__(self, D33, D44, t, force_recompute=False,
                     orientations=None):
-        """ Compute a look-up table for the contextual 
+        """ Compute a look-up table for the contextual
             enhancement kernel
 
         Parameters
@@ -32,12 +32,12 @@ cdef class EnhancementKernel:
         t   : float
             Diffusion time
         force_recompute : boolean
-            Always compute the look-up table even if it is available 
+            Always compute the look-up table even if it is available
             in cache. Default is False.
         orientations : int or array of orientations
-            Specify the number of orientations to be used with 
-            electrostatic repulsion, or provide a list of 
-            orientations. The default orientation scheme 
+            Specify the number of orientations to be used with
+            electrostatic repulsion, or provide a list of
+            orientations. The default orientation scheme
             is 'repulsion100'.
         """
 
@@ -80,43 +80,52 @@ cdef class EnhancementKernel:
     @cython.wraparound(False)
     @cython.boundscheck(False)
     cdef void create_lookup_table(self):
-        """ Compute the look-up table based on the parameters set 
+        """ Compute the look-up table based on the parameters set
             during class initialization
         """
         self.estimate_kernel_size()
 
-        cdef int OR = self.orientations.shape[0]
-        cdef int N = self.kernelsize
-        cdef int hn = (N-1)/2
+        cdef:
+            int OR = self.orientations.shape[0]
+            int N = self.kernelsize
+            int hn = (N-1)/2
+            # use cnp.npy_intp  rather than int
+            int angv, angr, xp, yp, zp
+
 
         x = np.array([0, 0, 0], dtype=np.float64)
         y = np.array([0, 0, 0], dtype=np.float64)
-        cdef double [:,:,:,:,::1] lookuptablelocal = \
-                                np.zeros((OR,OR,N,N,N))
 
-        for angv in range(0, OR):
-            print angv
-            for angr in range(0, OR):
-                for xp in range(-hn,hn+1):
-                    for yp in range(-hn,hn+1):
-                        for zp in range(-hn,hn+1):
-                            v = self.orientations[angv]
-                            r = self.orientations[angr]
-                            x[0] = xp
-                            x[1] = yp
-                            x[2] = zp
-                            #print(self.k2(x,y,r,v),xp+hn,yp+hn,zp+hn)
-                            lookuptablelocal[angv,
-                                            angr,
-                                            xp+hn,
-                                            yp+hn,
-                                            zp+hn] = self.k2(x,y,r,v)
+        cdef double [:,:,:,:,::1] lookuptablelocal = np.zeros((OR,OR,N,N,N))
+
+        with nogil:
+
+            for angv in range(0, OR):
+                # print angv
+                for angr in range(0, OR):
+                    for xp in range(-hn,hn+1):
+                        for yp in range(-hn,hn+1):
+                            for zp in range(-hn,hn+1):
+                                with gil:
+                                    v = self.orientations[angv]
+                                    r = self.orientations[angr]
+
+                                    x[0] = xp
+                                    x[1] = yp
+                                    x[2] = zp
+                                    #print(self.k2(x,y,r,v),xp+hn,yp+hn,zp+hn)
+
+                                    lookuptablelocal[angv,
+                                                     angr,
+                                                     xp+hn,
+                                                     yp+hn,
+                                                     zp+hn] = self.k2(x,y,r,v)
 
         self.lookuptable = lookuptablelocal
 
     def estimate_kernel_size(self):
-        """ Estimates the dimensions the kernel should 
-            have based on the kernel parameters. 
+        """ Estimates the dimensions the kernel should
+            have based on the kernel parameters.
         """
 
         x = np.array([0, 0, 0], dtype=np.float64)
@@ -144,9 +153,9 @@ cdef class EnhancementKernel:
 
         self.kernelsize = N
 
-    def k2(self, double [:] x, double [:] y, 
+    def k2(self, double [:] x, double [:] y,
                 double [:] r, double [:] v):
-        """ Evaluate the kernel at position x relative to 
+        """ Evaluate the kernel at position x relative to
             position y, with orientation r relative to orientation v.
         """
         cdef:
@@ -164,7 +173,7 @@ cdef class EnhancementKernel:
         arg2p = np.dot(transm,r)
         arg2 = euler_angles(arg2p)
 
-        c = self.coordinate_map(arg1[0], arg1[1], arg1[2], 
+        c = self.coordinate_map(arg1[0], arg1[1], arg1[2],
                                 arg2[0], arg2[1])
         kernelval = self.kernel(c)
 
@@ -172,8 +181,8 @@ cdef class EnhancementKernel:
 
     @cython.wraparound(False)
     @cython.boundscheck(False)
-    cdef double [:] coordinate_map(self, double x, double y, 
-                                    double z, double beta, 
+    cdef double [:] coordinate_map(self, double x, double y,
+                                    double z, double beta,
                                     double gamma):
         """ Compute a coordinate map for the kernel
 
