@@ -29,6 +29,7 @@ def test_enhancement_kernel():
 
     npt.assert_almost_equal(k.k2(x, y, r, v), 0.0355297)
 
+
 def test_symmetry():
 
     D33 = 1.0
@@ -37,12 +38,13 @@ def test_symmetry():
     k = EnhancementKernel(D33, D44, t, force_recompute=True)
 
     kernel = k.get_lookup_table()
-    kslice = np.array((kernel[0,0,:,3,3],kernel[0,0,3,:,3],kernel[0,0,3,3,:]))
+    kslice = np.array((kernel[0, 0, :, 3, 3],
+                       kernel[0, 0, 3, :, 3],
+                       kernel[0, 0, 3, 3, :]))
     ksliceR = np.fliplr(kslice)
-    diff = np.sum(kslice - ksliceR)/np.prod(kslice.shape)
-    npt.assert_equal(diff,0.0)
+    diff = np.sum(kslice - ksliceR) / np.prod(kslice.shape)
+    npt.assert_equal(diff, 0.0)
 
-    
 
 if __name__ == '__main__':
 
