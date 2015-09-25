@@ -5,7 +5,7 @@ import os.path
 
 from dipy.data import get_sphere
 from tempfile import gettempdir
-from libc.math cimport sqrt, exp, fabs, cos, sin, tan, acos
+from libc.math cimport sqrt, exp, fabs, cos, sin, tan, acos, atan2
 from math import ceil
 
 cdef class EnhancementKernel:
@@ -18,8 +18,10 @@ cdef class EnhancementKernel:
     cdef double [:, :] orientations
     cdef double [:, :, :, :, ::1] lookuptable
 
+    ## Python functions
+
     def __init__(self, D33, D44, t, force_recompute=False,
-                    orientations=None):
+                    orientations=None, test_mode=False):
         """ Compute a look-up table for the contextual
             enhancement kernel
 
@@ -51,6 +53,10 @@ cdef class EnhancementKernel:
         kernellutpath = "%s/kernel_d33@%4.2f_d44@%4.2f_t@%4.2f.dat" \
                         % (gettempdir(),D33,D44,t)
 
+        if test_mode:
+            self.create_lookup_table(test_mode = True)
+            return
+
         # if LUT exists, load
         if not force_recompute and os.path.isfile(kernellutpath):
             print "The kernel already exists. Loading..."
@@ -77,26 +83,40 @@ cdef class EnhancementKernel:
         """
         return self.orientations
 
+    def evaluate_kernel(self, x, y, r, v):
+        return self.k2(x,y,r,v)
+
+    # Cython functions
+
     @cython.wraparound(False)
     @cython.boundscheck(False)
-    cdef void create_lookup_table(self):
+    @cython.nonecheck(False)
+    cdef void create_lookup_table(self, test_mode = False):
         """ Compute the look-up table based on the parameters set
             during class initialization
         """
         self.estimate_kernel_size()
 
         cdef:
-            int OR = self.orientations.shape[0]
+            double [:, :] orientations = np.copy(self.orientations)
+            double [:] v
+            double [:] r
+            int OR = orientations.shape[0]
             int N = self.kernelsize
             int hn = (N-1)/2
             # use cnp.npy_intp  rather than int
             int angv, angr, xp, yp, zp
+            double [:] x
+            double [:] y
+            cdef double [:,:,:,:,::1] lookuptablelocal
 
+        # For testing, only compute one orientation of v
+        if test_mode:
+            OR = 1
 
-        x = np.array([0, 0, 0], dtype=np.float64)
-        y = np.array([0, 0, 0], dtype=np.float64)
-
-        cdef double [:,:,:,:,::1] lookuptablelocal = np.zeros((OR,OR,N,N,N))
+        lookuptablelocal = np.zeros((OR,OR,N,N,N))
+        x = np.zeros(3)
+        y = np.zeros(3) 
 
         with nogil:
 
@@ -107,8 +127,8 @@ cdef class EnhancementKernel:
                         for yp in range(-hn,hn+1):
                             for zp in range(-hn,hn+1):
                                 with gil:
-                                    v = self.orientations[angv]
-                                    r = self.orientations[angr]
+                                    v = orientations[angv,:]
+                                    r = orientations[angr,:]
 
                                     x[0] = xp
                                     x[1] = yp
@@ -123,38 +143,54 @@ cdef class EnhancementKernel:
 
         self.lookuptable = lookuptablelocal
 
-    def estimate_kernel_size(self):
+    @cython.wraparound(False)
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.cdivision(True)
+    cdef void estimate_kernel_size(self):
         """ Estimates the dimensions the kernel should
             have based on the kernel parameters.
         """
 
-        x = np.array([0, 0, 0], dtype=np.float64)
-        y = np.array([0, 0, 0], dtype=np.float64)
-        r = np.array([0, 0, 1], dtype=np.float64)
-        v = np.array([0, 0, 1], dtype=np.float64)
+        cdef:
+            double [:] x
+            double [:] y
+            double [:] r
+            double [:] v
+            double i
+
+        x = np.array([0., 0., 0.])
+        y = np.array([0., 0., 0.])
+        r = np.array([0., 0., 1.])
+        v = np.array([0., 0., 1.])
 
         # evaluate at origin
         self.kernelmax = self.k2(x, y, r, v);
-        print("max kernel val: %f" % self.kernelmax);
 
-        # determine a good kernel size
-        i = 0
-        while True:
-            i += 0.1
-            x[2] = i
-            kval = self.k2(x,y,r,v)/self.kernelmax
-            if(kval < 0.1):
-                break;
+        with nogil:
+            # determine a good kernel size
+            i = 0.0
+            while True:
+                i += 0.1
+                x[2] = i
+                kval = self.k2(x,y,r,v)/self.kernelmax
+                if(kval < 0.1):
+                    break;
+
         N = ceil(i)*2
         if N%2 == 0:
             N -= 1
 
+        print("max kernel val: %f" % self.kernelmax);
         print("Dimensions of kernel: %dx%dx%d" % (N,N,N))
 
         self.kernelsize = N
 
-    def k2(self, double [:] x, double [:] y,
-                double [:] r, double [:] v):
+    @cython.wraparound(False)
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    cdef double k2(self, double [:] x, double [:] y,
+                double [:] r, double [:] v) nogil:
         """ Evaluate the kernel at position x relative to
             position y, with orientation r relative to orientation v.
         """
@@ -167,10 +203,11 @@ cdef class EnhancementKernel:
             double [:] c
             double kernelval
 
-        a = np.subtract(x,y)
-        transm = np.transpose(R(euler_angles(v)))
-        arg1 = np.dot(transm,a)
-        arg2p = np.dot(transm,r)
+        with gil:
+            a = np.subtract(x,y)
+            transm = np.transpose(R(euler_angles(v)))
+            arg1 = np.dot(transm,a)
+            arg2p = np.dot(transm,r)
         arg2 = euler_angles(arg2p)
 
         c = self.coordinate_map(arg1[0], arg1[1], arg1[2],
@@ -181,9 +218,11 @@ cdef class EnhancementKernel:
 
     @cython.wraparound(False)
     @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.cdivision(True)
     cdef double [:] coordinate_map(self, double x, double y,
                                     double z, double beta,
-                                    double gamma):
+                                    double gamma) nogil:
         """ Compute a coordinate map for the kernel
 
         Parameters
@@ -206,11 +245,10 @@ cdef class EnhancementKernel:
         """
 
         cdef:
-            double [:] c
+            double c[6]
             double q
             double cg
             double cotq2
-        c = np.zeros(6)
 
         if beta == 0:
             c[0] = x
@@ -222,7 +260,7 @@ cdef class EnhancementKernel:
             q = fabs(beta)
             cg = cos(gamma)
             sg = sin(gamma)
-            cotq2 = cot(q/2)
+            cotq2 = 1.0/tan(q/2)
 
             c[0] = -0.5*z*beta*cg + \
                     x*(1-(beta*beta*cg*cg*(1 - 0.5*q*cotq2))/(q*q)) - \
@@ -237,11 +275,14 @@ cdef class EnhancementKernel:
             c[4] = beta * cg
             c[5] = 0
 
-        return c
+        with gil:
+            return np.array(c)
 
     @cython.wraparound(False)
     @cython.boundscheck(False)
-    cdef double kernel(self, double [:] c):
+    @cython.nonecheck(False)
+    @cython.cdivision(True)
+    cdef double kernel(self, double [:] c) nogil:
         """ Evaluate the kernel based on the coordinate map.
         """
         return 1/(8*sqrt(2))*sqrt(PI)*self.t* \
@@ -259,27 +300,21 @@ cdef class EnhancementKernel:
 
 cdef double PI = 3.1415926535897932
 
-cdef double cot(double d):
-    return 1/tan(d)
-
-cdef extern from "complex.h":
-    double cargl(double complex)
-
 # @cython.cdivision(True)
 @cython.wraparound(False)
 @cython.boundscheck(False)
-cdef void euler_angles(double [:] input, double [:] final_output) nogil:
+cdef double [:] euler_angles(double [:] input) nogil:
+
     cdef:
         double x
         double y
         double z
         double output[2]
-        double complex complex_xy
+        #double complex complex_xy
 
     x = input[0]
     y = input[1]
     z = input[2]
-    # output = np.zeros(2)
 
     # handle the case (0,0,1)
     if x*x < 10e-6 and y*y < 10e-6 and (z-1)*(z-1) < 10e-6:
@@ -294,18 +329,25 @@ cdef void euler_angles(double [:] input, double [:] final_output) nogil:
     # all other cases
     else:
         output[0] = acos(z)
-        complex_xy = complex(x,y)
-        output[1] = cargl(complex_xy)
+        #complex_xy = complex(x,y)
+        #output[1] = cargl(complex_xy)
+        output[1] = atan2(y,x)
 
-    final_output[0] = output[0]
-    final_output[1] = output[1]
+    #final_output[0] = output[0]
+    #final_output[1] = output[1]
 
-cdef double [:,:] R(double [:] input):
+    with gil:
+
+        return np.array(output)
+
+@cython.wraparound(False)
+@cython.boundscheck(False)
+cdef double [:,:] R(double [:] input) nogil:
 
     cdef:
         double beta
         double gamma
-        double [:,:] output
+        double output[3][3]
         double cb
         double sb
         double cg
@@ -313,21 +355,22 @@ cdef double [:,:] R(double [:] input):
 
     beta = input[0]
     gamma = input[1]
-    output = np.zeros((3,3))
 
     cb = cos(beta)
     sb = sin(beta)
     cg = cos(gamma)
     sg = sin(gamma)
 
-    output[0,0] = cb*cg
-    output[0,1] = -sg
-    output[0,2] = cg*sb
-    output[1,0] = cb*sg
-    output[1,1] = cg
-    output[1,2] = sb*sg
-    output[2,0] = -sb
-    output[2,1] = 0
-    output[2,2] = cb
+    output[0][0] = cb*cg
+    output[0][1] = -sg
+    output[0][2] = cg*sb
+    output[1][0] = cb*sg
+    output[1][1] = cg
+    output[1][2] = sb*sg
+    output[2][0] = -sb
+    output[2][1] = 0
+    output[2][2] = cb
 
-    return output
+    with gil:
+
+        return np.array(output)
