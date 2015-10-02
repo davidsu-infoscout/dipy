@@ -41,18 +41,24 @@ cdef class EnhancementKernel:
             electrostatic repulsion, or provide a list of
             orientations. The default orientation scheme
             is 'repulsion100'.
+        test_mode : boolean
+            Computes the lookup-table in one direction only
         """
 
+        # save parameters as class members
         self.D33 = D33
         self.D44 = D44
         self.t = t
 
+        # define a sphere (for now, only support 100 directions)
         sphere = get_sphere('repulsion100')
         self.orientations = sphere.vertices
 
+        # file location of the lut table for saving/loading
         kernellutpath = "%s/kernel_d33@%4.2f_d44@%4.2f_t@%4.2f.dat" \
                         % (gettempdir(),D33,D44,t)
 
+        # create a lookup table in testing mode
         if test_mode:
             self.create_lookup_table(test_mode = True)
             return
@@ -69,7 +75,7 @@ cdef class EnhancementKernel:
         else:
             print "The kernel doesn't exist yet. Computing..."
             self.create_lookup_table()
-            outfile = open(kernellutpath,'w')
+            outfile = open(kernellutpath, 'w')
             np.save(outfile, self.lookuptable)
             outfile.close()
 
@@ -84,13 +90,14 @@ cdef class EnhancementKernel:
         return self.orientations
 
     def evaluate_kernel(self, x, y, r, v):
-        return self.k2(x,y,r,v)
+        return self.k2(x, y, r, v)
 
     # Cython functions
 
     @cython.wraparound(False)
     @cython.boundscheck(False)
     @cython.nonecheck(False)
+    @cython.cdivision(True)
     cdef void create_lookup_table(self, test_mode = False):
         """ Compute the look-up table based on the parameters set
             during class initialization
@@ -101,31 +108,33 @@ cdef class EnhancementKernel:
             double [:, :] orientations = np.copy(self.orientations)
             double [:] v
             double [:] r
-            int OR = orientations.shape[0]
+            int OR1 = orientations.shape[0]
+            int OR2 = orientations.shape[0]
             int N = self.kernelsize
             int hn = (N-1)/2
             # use cnp.npy_intp  rather than int
             int angv, angr, xp, yp, zp
             double [:] x
             double [:] y
-            cdef double [:,:,:,:,::1] lookuptablelocal
+            cdef double [:, :, :, :, ::1] lookuptablelocal
+            double kmax = self.kernelmax
 
         # For testing, only compute one orientation of v
         if test_mode:
-            OR = 1
+            OR2 = 1
 
-        lookuptablelocal = np.zeros((OR,OR,N,N,N))
+        lookuptablelocal = np.zeros((OR1, OR2, N, N, N))
         x = np.zeros(3)
         y = np.zeros(3) 
 
         with nogil:
 
-            for angv in range(0, OR):
+            for angv in range(0, OR1):
                 # print angv
-                for angr in range(0, OR):
-                    for xp in range(-hn,hn+1):
-                        for yp in range(-hn,hn+1):
-                            for zp in range(-hn,hn+1):
+                for angr in range(0, OR2):
+                    for xp in range(-hn, hn+1):
+                        for yp in range(-hn, hn+1):
+                            for zp in range(-hn, hn+1):
                                 with gil:
                                     v = orientations[angv,:]
                                     r = orientations[angr,:]
@@ -133,13 +142,13 @@ cdef class EnhancementKernel:
                                     x[0] = xp
                                     x[1] = yp
                                     x[2] = zp
-                                    #print(self.k2(x,y,r,v),xp+hn,yp+hn,zp+hn)
+                                    #print(self.k2(x,y,r,v), xp+hn, yp+hn, zp+hn)
 
                                     lookuptablelocal[angv,
                                                      angr,
                                                      xp+hn,
                                                      yp+hn,
-                                                     zp+hn] = self.k2(x,y,r,v)
+                                                     zp+hn] = self.k2(x,y,r,v)/kmax # add this normalization?
 
         self.lookuptable = lookuptablelocal
 
@@ -173,7 +182,7 @@ cdef class EnhancementKernel:
             while True:
                 i += 0.1
                 x[2] = i
-                kval = self.k2(x,y,r,v)/self.kernelmax
+                kval = self.k2(x, y, r, v)/self.kernelmax
                 if(kval < 0.1):
                     break;
 
@@ -181,8 +190,8 @@ cdef class EnhancementKernel:
         if N%2 == 0:
             N -= 1
 
-        print("max kernel val: %f" % self.kernelmax);
-        print("Dimensions of kernel: %dx%dx%d" % (N,N,N))
+        #print("max kernel val: %f" % self.kernelmax);
+        print("Dimensions of kernel: %dx%dx%d" % (N, N, N))
 
         self.kernelsize = N
 
@@ -245,11 +254,12 @@ cdef class EnhancementKernel:
         """
 
         cdef:
-            double c[6]
+            double [:] c
             double q
             double cg
             double cotq2
-
+        with gil:
+            c = np.zeros(6)
         if beta == 0:
             c[0] = x
             c[1] = y
@@ -309,12 +319,14 @@ cdef double [:] euler_angles(double [:] input) nogil:
         double x
         double y
         double z
-        double output[2]
+        double [:] output
         #double complex complex_xy
 
     x = input[0]
     y = input[1]
     z = input[2]
+    with gil:
+        output = np.zeros(3)
 
     # handle the case (0,0,1)
     if x*x < 10e-6 and y*y < 10e-6 and (z-1)*(z-1) < 10e-6:
@@ -338,7 +350,7 @@ cdef double [:] euler_angles(double [:] input) nogil:
 
     with gil:
 
-        return np.array(output)
+        return output
 
 @cython.wraparound(False)
 @cython.boundscheck(False)
@@ -347,7 +359,7 @@ cdef double [:,:] R(double [:] input) nogil:
     cdef:
         double beta
         double gamma
-        double output[3][3]
+        double [:] output
         double cb
         double sb
         double cg
@@ -355,22 +367,25 @@ cdef double [:,:] R(double [:] input) nogil:
 
     beta = input[0]
     gamma = input[1]
+    
+    with gil:
+        output = np.zeros(9)
 
     cb = cos(beta)
     sb = sin(beta)
     cg = cos(gamma)
     sg = sin(gamma)
 
-    output[0][0] = cb*cg
-    output[0][1] = -sg
-    output[0][2] = cg*sb
-    output[1][0] = cb*sg
-    output[1][1] = cg
-    output[1][2] = sb*sg
-    output[2][0] = -sb
-    output[2][1] = 0
-    output[2][2] = cb
+    output[0] = cb*cg
+    output[1] = -sg
+    output[2] = cg*sb
+    output[3] = cb*sg
+    output[4] = cg
+    output[5] = sb*sg
+    output[6] = -sb
+    output[7] = 0
+    output[8] = cb
 
     with gil:
 
-        return np.array(output)
+        return np.reshape(output,(3,3))
