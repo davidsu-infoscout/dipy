@@ -53,10 +53,10 @@ cdef class EnhancementKernel:
         # define a sphere (for now, only support 100 directions)
         sphere = get_sphere('repulsion100')
         self.orientations = sphere.vertices
-
+        
         # file location of the lut table for saving/loading
-        kernellutpath = "%s/kernel_d33@%4.2f_d44@%4.2f_t@%4.2f.dat" \
-                        % (gettempdir(),D33,D44,t)
+        kernellutpath = "%s/kernel_d33@%4.2f_d44@%4.2f_t@%4.2f_numverts%d.npy" \
+                        % (gettempdir(), D33, D44, t, len(self.orientations))
 
         # create a lookup table in testing mode
         if test_mode:
@@ -65,26 +65,21 @@ cdef class EnhancementKernel:
 
         # if LUT exists, load
         if not force_recompute and os.path.isfile(kernellutpath):
-            print "The kernel already exists. Loading..."
-
-            infile = open(kernellutpath,'r')
-            self.lookuptable = np.load(infile)
-            infile.close()
+            print "The kernel already exists. Loading from " + kernellutpath
+            self.lookuptable = np.load(kernellutpath)
 
         # else, create
         else:
             print "The kernel doesn't exist yet. Computing..."
             self.create_lookup_table()
-            outfile = open(kernellutpath, 'w')
-            np.save(outfile, self.lookuptable)
-            outfile.close()
-
+            np.save(kernellutpath, self.lookuptable)
+            
     def get_lookup_table(self):
         """ Return the computed look-up table.
         """
         return self.lookuptable
 
-    def get_orientatons(self):
+    def get_orientations(self):
         """ Return the orientations.
         """
         return self.orientations
