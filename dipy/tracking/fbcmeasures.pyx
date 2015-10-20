@@ -9,15 +9,37 @@ from dipy.core.ndindex import ndindex
 
 cdef class FBCMeasures:
 
+    cdef double [:, :, :] streamline_points
     cdef double [:, :] streamlines_lfbc
+    cdef double [:] streamlines_rfbc
 
     ## Python functions
     
     def __init__(self, streamlines, kernel):
     
         self.compute(streamlines, kernel)
+        
+    def get_points(self):
+        return self.streamline_points
+        
+    def get_lfbc(self):
+        return self.streamlines_lfbc
+        
+    def get_rfbc(self):
+        return self.streamlines_rfbc
+        
+    def get_points_rfbc_thresholded(self, threshold):
+        # select fibers that are above the rfbc threshold
+        selectedFibers = np.select([self.streamlines_rfbc>threshold], [self.streamline_points])
+        pylist = selectedFibers.tolist()
+        for i in range(len(pylist)):
+            # remove empty fiber points
+            pylist[i] = list(filter(([-1,-1,-1]).__ne__, pylist[i]))
+        return pylist
+        
     
     ## Cython functions
+    
     @cython.wraparound(False)
     @cython.boundscheck(False)
     @cython.nonecheck(False)
@@ -36,10 +58,8 @@ cdef class FBCMeasures:
             int [:, :] streamlines_nearestp
             double [:, :] streamline_scores
             double [:] tangent
-            int lineId
-            int pointId
-            int lineId2
-            int pointId2
+            int lineId, pointId
+            int lineId2, pointId2
             double score
             int xd, yd, zd
             double [:, :, :, :, ::1] lut
@@ -47,7 +67,7 @@ cdef class FBCMeasures:
             int hn
         
         numberOfFibers = len(py_streamlines)
-        numberOfFibers = 3 # temp
+        #numberOfFibers = 100 # temp
         streamlines_length = np.array([len(x) for x in py_streamlines])
         maxLength = max(streamlines_length)
         dim = 3
@@ -56,16 +76,17 @@ cdef class FBCMeasures:
         N = lut.shape[2]
         hn = (N-1)/2
         
-        streamlines = np.zeros((numberOfFibers, maxLength, dim), dtype=np.float64)
+        streamlines = np.zeros((numberOfFibers, maxLength, dim), dtype=np.float64)-1
         streamlines_tangents = np.zeros((numberOfFibers, maxLength, dim), dtype=np.float64)
         streamlines_nearestp = np.zeros((numberOfFibers, maxLength), dtype=np.int)
-        streamline_scores = np.zeros((numberOfFibers, maxLength), dtype=np.float64)
+        streamline_scores = np.zeros((numberOfFibers, maxLength), dtype=np.float64)-1
         
         # copy python streamlines into c++ buffer
         for lineId in range(numberOfFibers):
             for pointId in range(streamlines_length[lineId]):
                 for dim in range(3):
                     streamlines[lineId, pointId, dim] = py_streamlines[lineId][pointId][dim]
+        self.streamline_points = streamlines
         
         # compute tangents
         for lineId in range(numberOfFibers):
@@ -73,147 +94,69 @@ cdef class FBCMeasures:
                 tangent = np.subtract(streamlines[lineId, pointId+1], streamlines[lineId, pointId])
                 streamlines_tangents[lineId, pointId] = np.divide(tangent, np.sqrt(np.dot(tangent, tangent)))
         
-         # estimate which kernel LUT index corresponds to angles
+        # estimate which kernel LUT index corresponds to angles
         tree = KDTree(kernel.get_orientations())
         for lineId in range(numberOfFibers):
             for pointId in range(streamlines_length[lineId]-1):
-                streamlines_nearestp[lineId, pointId] = tree.query(streamlines[lineId])[1]
+                streamlines_nearestp[lineId, pointId] = tree.query(streamlines[lineId, pointId])[1]
         
         # compute fiber LFBC measures
-        for lineId in range(numberOfFibers):
-            for pointId in range(streamlines_length[lineId]-1):
-                score = 0.0
-                # for lineId2 in range(numberOfFibers):
-                    # if lineId == lineId2:
-                        # continue
-                    # for pointId2 in range(streamlines_length[lineId2]-1):
-                        # displacement = np.subtract(streamlines[lineId, pointId], streamlines[lineId2, pointId2])
-                        # xd = int(round(displacement[0]))
-                        # yd = int(round(displacement[1]))
-                        # zd = int(round(displacement[2]))
-                        
-                        # if xd > hn or -xd > hn or yd > hn or -yd > hn or \
-                            # zd > hn or -zd > hn:
-                            # continue
+        with nogil:
+            for lineId in range(numberOfFibers):
+                for pointId in range(streamlines_length[lineId]-1):
+                    score = 0.0
+                    for lineId2 in range(numberOfFibers):
+                    
+                        # skip lfbc computation with itself
+                        if lineId == lineId2:
+                            continue
                             
-                        # print xd
-                        # print yd
-                        # print zd
-                        
-                        # score += lut[streamlines_nearestp[lineId][pointId], 
-                                    # streamlines_nearestp[lineId2][pointId2], 
-                                    # hn+xd, 
-                                    # hn+yd, 
-                                    # hn+zd]  # ang_v, ang_r, x, y, z
-                                
-                # streamline_scores[lineId, pointId] = score
-
-
-# def FBCMeasures(streamlines, kernel):
-    
-    # performFBC(streamlines, kernel)
-    
-    
-    
-# def performFBC(streamlines, kernel):
-
-    # streamlines = streamlines[1:5]
-    
-    # numberOfFibers = len(streamlines)
-    # minDistSquared = 15*15
-    
-    # # compute fiber tangents
-    # streamline_tangents = []
-    # for streamline in streamlines:
-        # tangents = []
-        # for n in range(len(streamline)-1): # skip last point
-            # t = streamline[n+1] - streamline[n]
-            # tangents.append( t/sqrt(t[0]*t[0] + t[1]*t[1] + t[2]*t[2]) )
-        # streamline_tangents.append(tangents)
-    
-    # # estimate which kernel LUT index corresponds to angles
-    # tree = KDTree(kernel.get_orientations())
-    # streamline_nearestp = []
-    # for tangent in streamline_tangents:
-        # nearestp = []
-        # for n in tangent:
-            # nearestp.append(tree.query(n)[1])
-        # streamline_nearestp.append(nearestp)
-    # print streamline_nearestp[0][1:10]
-    
-    # # calculate lengths
-    # streamline_lengths = []
-    # for tangent in streamline_tangents:
-        # streamline_lengths.append(len(tangent))
+                        for pointId2 in range(streamlines_length[lineId2]-1):
+                            # compute displacement
+                            xd = int(streamlines[lineId, pointId, 0] - streamlines[lineId2, pointId2, 0] + 0.5) # fast round
+                            yd = int(streamlines[lineId, pointId, 1] - streamlines[lineId2, pointId2, 1] + 0.5) # fast round
+                            zd = int(streamlines[lineId, pointId, 2] - streamlines[lineId2, pointId2, 2] + 0.5) # fast round
+                            
+                            # if position is outside the kernel bounds, skip
+                            if xd > hn or -xd > hn or \
+                               yd > hn or -yd > hn or \
+                               zd > hn or -zd > hn:
+                                continue
+                            
+                            # grab kernel value from LUT
+                            score += lut[streamlines_nearestp[lineId, pointId], 
+                                         streamlines_nearestp[lineId2, pointId2], 
+                                         hn+xd, 
+                                         hn+yd, 
+                                         hn+zd]  # ang_v, ang_r, x, y, z
+                                    
+                    streamline_scores[lineId, pointId] = score
         
-    # lut = kernel.get_lookup_table()
-    # N = lut.shape[2]
-    # hn = (N-1)/2
-    
-    # # compute fiber scores
-    # streamline_scores = []
-    # for tangent in streamline_tangents:
-        # streamline_scores.append([0]*len(tangent))
-    # #pdb.set_trace()
-    
-    # # loop through all fibers
-    # for lineId in range(numberOfFibers):
-    
-        # numberOfFiberPoints = streamline_lengths[lineId]
+        # Save LFBC as class member
+        self.streamlines_lfbc = streamline_scores
         
-        # # loop through each point of the fiber
-        # for pointId in range(numberOfFiberPoints):     
-
-            # score = 0.0
+        # compute RFBC for each fiber
+        self.streamlines_rfbc = compute_rfbc(streamlines_length, streamline_scores)
         
-            # # loop through all other fibers
-            # for lineId2 in range(numberOfFibers):
-                
-                # if lineId == lineId2:
-                    # continue
-                    
-                # numberOfFiberPoints2 = streamline_lengths[lineId2]
-                
-                # # compare to the points of all other fibers
-                # for pointId2 in range(numberOfFiberPoints2):
-                    
-                    # displacement = streamlines[lineId][pointId] - streamlines[lineId2][pointId2]
-                    # xd = int(round(displacement[0]))
-                    # yd = int(round(displacement[1]))
-                    # zd = int(round(displacement[2]))
-                    
-                    
-                    
-                    # # filter far-away points (also add angle?)
-                    # #if displacement[0]*displacement[0] + \
-                    # #    displacement[1]*displacement[1] + \
-                    # #    displacement[2]*displacement[2] > minDistSquared:
-                    # #    continue
-                    
-                    # if xd > hn or \
-                        # -xd > hn or \
-                        # yd > hn or \
-                        # -yd > hn or \
-                        # zd > hn or \
-                        # -zd > hn:
-                        # continue
-                    
-                    # score += lut[streamline_nearestp[lineId][pointId], streamline_nearestp[lineId2][pointId2], hn+xd, hn+yd, hn+zd]  # ang_v, ang_r, x, y, z
-                    
-                    # #pdb.set_trace()
-                
-            # streamline_scores[lineId][pointId] = score
-                
-    # print streamline_scores
-    
+        #print np.array(streamline_scores)
+        #print np.shape(streamline_scores)
+        #print np.array(self.streamlines_rfbc)
+        
+def compute_rfbc(streamlines_length, streamline_scores):
+    intLength = min(np.amin(streamlines_length), 7)
+    intValue = np.apply_along_axis(lambda x: min_moving_average(x, intLength), 1, streamline_scores)
+    #print np.shape(intValue)
+    averageTotal = np.mean(np.apply_along_axis(lambda x:np.mean(np.extract(x>=0, x)), 1, streamline_scores))
+    #print np.array(intValue)
+    #print averageTotal
+    return intValue/averageTotal
+            
+def min_moving_average(a, n):
+    ret = np.cumsum(np.extract(a>=0, a))
+    ret[n:] = ret[n:] - ret[:-n]
+    return np.amin(ret[n - 1:] / n)
+        
 
-    # # compute RFBC for each fiber
-    
-    
-    
-    
-    
-    
     
     
     
