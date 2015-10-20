@@ -8,7 +8,7 @@ from copy import deepcopy
 from os.path import join as pjoin, dirname
 from glob import glob
 
-os.environ["CC"] = "clang"
+#os.environ["CC"] = "clang"
 
 # BEFORE importing distutils, remove MANIFEST. distutils doesn't properly
 # update it when the contents of directories change.
