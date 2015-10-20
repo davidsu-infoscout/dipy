@@ -9,20 +9,36 @@ def convolve_5d(odfs_sh, kernel, test_mode=False):
     """ Perform the shift-twist convolution with the ODF data and 
         the lookup-table of the kernel.
 
-        Parameters
-        ----------
-        odfs : array of double
-            The ODF data in spherical harmonics format
-        lut : array of double
-            The 5D lookup table
-        test_mode : boolean
-            Reduced convolution in one direction only for testing
-            
-        Returns
-        -------
-        output : array of double
-            The ODF data after convolution enhancement
-        """
+    Parameters
+    ----------
+    odfs : array of double
+        The ODF data in spherical harmonics format
+    lut : array of double
+        The 5D lookup table
+    test_mode : boolean
+        Reduced convolution in one direction only for testing
+        
+    Returns
+    -------
+    output : array of double
+        The ODF data after convolution enhancement
+        
+    References
+    -------
+    [DuitsAndFranken2011] Duits, R. and Franken, E. (2011) Morphological and
+                      Linear Scale Spaces for Fiber Enhancement in DWI-MRI.
+                      J Math Imaging Vis, 46(3):326-368.
+    [Portegies2015] J. Portegies, G. Sanguinetti, S. Meesters, and R. Duits. (2015)
+                 New Approximation of a Scale Space Kernel on SE(3) and
+                 Applications in Neuroimaging. Fifth International
+                 Conference on Scale Space and Variational Methods in
+                 Computer Vision
+    [Portegies2015b] J. Portegies, R. Fick, G. Sanguinetti, S. Meesters, G.Girard,
+                 and R. Duits. (2015) Improving Fiber Alignment in HARDI by 
+                 Combining Contextual PDE flow with Constrained Spherical 
+                 Deconvolution. PLoS One.
+    """
+    
     # convert the ODFs from SH basis to DSF
     sphere = get_sphere('repulsion100')
     odfs_dsf = sh_to_sf(odfs_sh, sphere, sh_order=8, basis_type=None)
@@ -41,20 +57,20 @@ def convolve_5d_sf(odfs_sf, kernel, test_mode=False):
     """ Perform the shift-twist convolution with the ODF data and 
         the lookup-table of the kernel.
 
-        Parameters
-        ----------
-        odfs : array of double
-            The ODF data sampled on a sphere
-        lut : array of double
-            The 5D lookup table
-        test_mode : boolean
-            Reduced convolution in one direction only for testing
+    Parameters
+    ----------
+    odfs : array of double
+        The ODF data sampled on a sphere
+    lut : array of double
+        The 5D lookup table
+    test_mode : boolean
+        Reduced convolution in one direction only for testing
 
-        Returns
-        -------
-        output : array of double
-            The ODF data after convolution enhancement
-        """
+    Returns
+    -------
+    output : array of double
+        The ODF data after convolution enhancement
+    """
     # perform the convolution
     output = perform_convolution(odfs_sf, 
                         kernel.get_lookup_table(),
@@ -70,20 +86,20 @@ cdef double [:, :, :, ::1] perform_convolution (double [:, :, :, ::1] odfs,
     """ Perform the shift-twist convolution with the ODF data 
         and the lookup-table of the kernel.
 
-        Parameters
-        ----------
-        odfs : array of double
-            The ODF data sampled on a sphere
-        lut : array of double
-            The 5D lookup table
-        test_mode : boolean
-            Reduced convolution in one direction only for testing
-            
-        Returns
-        -------
-        output : array of double
-            The ODF data after convolution enhancement
-        """
+    Parameters
+    ----------
+    odfs : array of double
+        The ODF data sampled on a sphere
+    lut : array of double
+        The 5D lookup table
+    test_mode : boolean
+        Reduced convolution in one direction only for testing
+        
+    Returns
+    -------
+    output : array of double
+        The ODF data after convolution enhancement
+    """
         
     cdef:
         double [:, :, :, ::1] output = np.array(odfs, copy=True)

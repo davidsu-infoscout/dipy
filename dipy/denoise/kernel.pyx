@@ -43,6 +43,21 @@ cdef class EnhancementKernel:
             is 'repulsion100'.
         test_mode : boolean
             Computes the lookup-table in one direction only
+            
+        References
+        -------
+        [DuitsAndFranken2011] Duits, R. and Franken, E. (2011) Morphological and
+                          Linear Scale Spaces for Fiber Enhancement in DWI-MRI.
+                          J Math Imaging Vis, 46(3):326-368.
+        [Portegies2015] J. Portegies, G. Sanguinetti, S. Meesters, and R. Duits. (2015)
+                     New Approximation of a Scale Space Kernel on SE(3) and
+                     Applications in Neuroimaging. Fifth International
+                     Conference on Scale Space and Variational Methods in
+                     Computer Vision
+        [Portegies2015b] J. Portegies, R. Fick, G. Sanguinetti, S. Meesters, G.Girard,
+                     and R. Duits. (2015) Improving Fiber Alignment in HARDI by 
+                     Combining Contextual PDE flow with Constrained Spherical 
+                     Deconvolution. PLoS One.
         """
 
         # save parameters as class members
@@ -137,13 +152,12 @@ cdef class EnhancementKernel:
                                     x[0] = xp
                                     x[1] = yp
                                     x[2] = zp
-                                    #print(self.k2(x,y,r,v), xp+hn, yp+hn, zp+hn)
 
                                     lookuptablelocal[angv,
                                                      angr,
                                                      xp+hn,
                                                      yp+hn,
-                                                     zp+hn] = self.k2(x,y,r,v)/kmax # add this normalization?
+                                                     zp+hn] = self.k2(x,y,r,v)/kmax
 
         self.lookuptable = lookuptablelocal
 
