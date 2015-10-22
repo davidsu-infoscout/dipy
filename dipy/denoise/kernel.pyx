@@ -4,6 +4,7 @@ cimport cython
 import os.path
 
 from dipy.data import get_sphere
+from dipy.core.sphere import disperse_charges, Sphere, HemiSphere
 from tempfile import gettempdir
 from libc.math cimport sqrt, exp, fabs, cos, sin, tan, acos, atan2
 from math import ceil
@@ -17,6 +18,7 @@ cdef class EnhancementKernel:
     cdef double kernelmax
     cdef double [:, :] orientations
     cdef double [:, :, :, :, ::1] lookuptable
+    cdef object sphere
 
     ## Python functions
 
@@ -36,11 +38,10 @@ cdef class EnhancementKernel:
         force_recompute : boolean
             Always compute the look-up table even if it is available
             in cache. Default is False.
-        orientations : int or array of orientations
+        orientations : integer or Sphere object
             Specify the number of orientations to be used with
-            electrostatic repulsion, or provide a list of
-            orientations. The default orientation scheme
-            is 'repulsion100'.
+            electrostatic repulsion, or provide a Sphere object.
+            The default sphere is 'repulsion100'.
         test_mode : boolean
             Computes the lookup-table in one direction only
             
@@ -65,9 +66,22 @@ cdef class EnhancementKernel:
         self.D44 = D44
         self.t = t
 
-        # define a sphere (for now, only support 100 directions)
-        sphere = get_sphere('repulsion100')
+        # define a sphere
+        if type(orientations) is Sphere:
+            # use the sphere defined by the user
+            sphere = orientations
+        elif type(orientations) is int:
+            # electrostatic repulsion based on number of orientations
+            n_pts = orientations
+            theta = np.pi * np.random.rand(n_pts)
+            phi = 2 * np.pi * np.random.rand(n_pts)
+            hsph_initial  = HemiSphere(theta=theta, phi=phi)
+            sphere, potential = disperse_charges(hsph_initial , 5000)
+        else:
+            # use default
+            sphere = get_sphere('repulsion100')
         self.orientations = sphere.vertices
+        self.sphere = sphere
         
         # file location of the lut table for saving/loading
         kernellutpath = "%s/kernel_d33@%4.2f_d44@%4.2f_t@%4.2f_numverts%d.npy" \
@@ -98,6 +112,11 @@ cdef class EnhancementKernel:
         """ Return the orientations.
         """
         return self.orientations
+        
+    def get_sphere(self):
+        """ Get the sphere corresponding with the orientations
+        """
+        return self.sphere
 
     def evaluate_kernel(self, x, y, r, v):
         return self.k2(x, y, r, v)
@@ -329,7 +348,6 @@ cdef double [:] euler_angles(double [:] input) nogil:
         double y
         double z
         double [:] output
-        #double complex complex_xy
 
     x = input[0]
     y = input[1]
@@ -350,12 +368,7 @@ cdef double [:] euler_angles(double [:] input) nogil:
     # all other cases
     else:
         output[0] = acos(z)
-        #complex_xy = complex(x,y)
-        #output[1] = cargl(complex_xy)
         output[1] = atan2(y,x)
-
-    #final_output[0] = output[0]
-    #final_output[1] = output[1]
 
     with gil:
 
