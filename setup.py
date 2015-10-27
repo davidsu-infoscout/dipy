@@ -8,12 +8,11 @@ from copy import deepcopy
 from os.path import join as pjoin, dirname
 from glob import glob
 
-#os.environ["CC"] = "clang"
-
 # BEFORE importing distutils, remove MANIFEST. distutils doesn't properly
 # update it when the contents of directories change.
 if os.path.exists('MANIFEST'): os.remove('MANIFEST')
 
+os.environ['CC'] = '/usr/local/bin/clang-omp'
 
 # Get version and release info, which is all stored in dipy/info.py
 ver_file = os.path.join('dipy', 'info.py')
@@ -98,14 +97,13 @@ for modulename, other_sources, language in (
     ('dipy.tracking.local.interpolation', [], 'c'),
     ('dipy.tracking.vox2track', [], 'c'),
     ('dipy.tracking.propspeed', [], 'c'),
-    ('dipy.tracking.fbcmeasures', [], 'c'),
     ('dipy.segment.cythonutils', [], 'c'),
     ('dipy.segment.featurespeed', [], 'c'),
     ('dipy.segment.metricspeed', [], 'c'),
     ('dipy.segment.clusteringspeed', [], 'c'),
     ('dipy.segment.clustering_algorithms', [], 'c'),
     ('dipy.denoise.denspeed', [], 'c'),
-    ('dipy.denoise.kernel', [], 'c'),
+    ('dipy.denoise.enhancement_kernel', [], 'c'),
     ('dipy.denoise.convolution5d', [], 'c'),
     ('dipy.align.vector_fields', [], 'c'),
     ('dipy.align.sumsqdiff', [], 'c'),

@@ -3,6 +3,10 @@ cimport numpy as cnp
 cimport cython
 import os.path
 
+cimport safe_openmp as openmp
+from safe_openmp cimport have_openmp
+from cython.parallel import prange
+
 from dipy.data import get_sphere
 from dipy.core.sphere import disperse_charges, Sphere, HemiSphere
 from tempfile import gettempdir
@@ -19,11 +23,12 @@ cdef class EnhancementKernel:
     cdef double [:, :] orientations
     cdef double [:, :, :, :, ::1] lookuptable
     cdef object sphere
+    cdef object num_threads
 
     ## Python functions
 
     def __init__(self, D33, D44, t, force_recompute=False,
-                    orientations=None, test_mode=False):
+                    orientations=None, test_mode=False, num_threads=None):
         """ Compute a look-up table for the contextual
             enhancement kernel
 
@@ -82,6 +87,9 @@ cdef class EnhancementKernel:
             sphere = get_sphere('repulsion100')
         self.orientations = sphere.vertices
         self.sphere = sphere
+
+        # save openmp settings
+        self.num_threads = num_threads
         
         # file location of the lut table for saving/loading
         kernellutpath = "%s/kernel_d33@%4.2f_d44@%4.2f_t@%4.2f_numverts%d.npy" \
@@ -142,11 +150,24 @@ cdef class EnhancementKernel:
             int N = self.kernelsize
             int hn = (N-1)/2
             # use cnp.npy_intp  rather than int
-            int angv, angr, xp, yp, zp
+            cnp.npy_intp angv, angr, xp, yp, zp
             double [:] x
             double [:] y
             cdef double [:, :, :, :, ::1] lookuptablelocal
             double kmax = self.kernelmax
+            int all_cores
+
+        # if have_openmp:
+        #     all_cores = openmp.omp_get_num_procs()
+
+        # if num_threads is not None:
+        #     threads_to_use = num_threads
+        # else:
+        #     threads_to_use = all_cores
+
+        # if have_openmp:
+        #     openmp.omp_set_dynamic(0)
+        #     openmp.omp_set_num_threads(threads_to_use)    
 
         # For testing, only compute one orientation of v
         if test_mode:
@@ -157,26 +178,24 @@ cdef class EnhancementKernel:
         y = np.zeros(3) 
 
         with nogil:
-
-            for angv in range(0, OR1):
+            for angv in range(OR1):
                 # print angv
-                for angr in range(0, OR2):
+                for angr in range(OR2):
                     for xp in range(-hn, hn+1):
                         for yp in range(-hn, hn+1):
                             for zp in range(-hn, hn+1):
-                                with gil:
-                                    v = orientations[angv,:]
-                                    r = orientations[angr,:]
+                                v = orientations[angv,:]
+                                r = orientations[angr,:]
 
-                                    x[0] = xp
-                                    x[1] = yp
-                                    x[2] = zp
+                                x[0] = xp
+                                x[1] = yp
+                                x[2] = zp
 
-                                    lookuptablelocal[angv,
-                                                     angr,
-                                                     xp+hn,
-                                                     yp+hn,
-                                                     zp+hn] = self.k2(x,y,r,v)/kmax
+                                lookuptablelocal[angv,
+                                                 angr,
+                                                 xp+hn,
+                                                 yp+hn,
+                                                 zp+hn] = self.k2(x,y,r,v)/kmax
 
         self.lookuptable = lookuptablelocal
 
