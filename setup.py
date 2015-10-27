@@ -12,7 +12,7 @@ from glob import glob
 # update it when the contents of directories change.
 if os.path.exists('MANIFEST'): os.remove('MANIFEST')
 
-os.environ['CC'] = '/usr/local/bin/clang-omp'
+# os.environ['CC'] = '/usr/local/bin/clang-omp'
 
 # Get version and release info, which is all stored in dipy/info.py
 ver_file = os.path.join('dipy', 'info.py')
@@ -105,6 +105,7 @@ for modulename, other_sources, language in (
     ('dipy.denoise.denspeed', [], 'c'),
     ('dipy.denoise.enhancement_kernel', [], 'c'),
     ('dipy.denoise.convolution5d', [], 'c'),
+    ('dipy.denoise.minimalexample', [], 'c'),
     ('dipy.align.vector_fields', [], 'c'),
     ('dipy.align.sumsqdiff', [], 'c'),
     ('dipy.align.expectmax', [], 'c'),
