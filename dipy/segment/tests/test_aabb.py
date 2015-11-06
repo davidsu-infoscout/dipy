@@ -118,11 +118,13 @@ def test_qbundles_full_brain():
 # 329 vs 210 1.5X
 # 20
 # 2006s (1110 clusters) vs 1218s (1103 clusters) 1.6X
+
 # 15
 # 8669 (4274 clusters) vs 4657 (4274 clusters) 1.86X
 # 15 but with 1/2 padding
 # 8669 (4274 clusters) vs 3842 (4314 clusters) 2.2X
 # 15 but with No padding
+# 8669 (4274 clusters) vs BVH 2974 (5946 clusters) 2.9X
 
 test_qbundles_full_brain()
 

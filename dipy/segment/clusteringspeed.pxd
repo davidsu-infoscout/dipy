@@ -11,6 +11,15 @@ cdef struct NearestCluster:
     int id
     double dist
 
+cdef struct Tree:
+    TreeNode * root
+
+cdef struct TreeNode:
+    TreeNode * left
+    TreeNode * right
+    Centroid * centroid
+    float [6] aabb
+
 
 cdef class Clusters:
     cdef int _nb_clusters

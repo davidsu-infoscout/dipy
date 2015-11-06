@@ -13,6 +13,7 @@ cdef extern from "math.h" nogil:
 cdef extern from "stdlib.h" nogil:
     ctypedef unsigned long size_t
     void free(void *ptr)
+    void *malloc(size_t elsize)
     void *calloc(size_t nelem, size_t elsize)
     void *realloc(void *ptr, size_t elsize)
     void *memset(void *ptr, int value, size_t num)
@@ -60,6 +61,63 @@ cdef int aabb_overlap(float * aabb1, float * aabb2) nogil:
         int z = fabs(aabb1[2] - aabb2[2]) <= (aabb1[5] + aabb2[5])
 
     return x & y & z;
+
+cdef TreeNode * tree_root() nogil:
+
+    cdef TreeNode * root = <TreeNode *> malloc(sizeof(TreeNode))
+
+    root.left = NULL
+    root.right = NULL
+    root.centroid = NULL
+
+    root.aabb[0] = 0
+    root.aabb[1] = 0
+    root.aabb[2] = 0
+    root.aabb[3] = BIGGEST_FLOAT
+    root.aabb[4] = BIGGEST_FLOAT
+    root.aabb[5] = BIGGEST_FLOAT
+
+    return root
+
+cdef TreeNode * tree_node_creation(Centroid * centroid) nogil:
+
+    cdef TreeNode * node = <TreeNode *> malloc(sizeof(TreeNode))
+
+    node.left = NULL
+    node.right = NULL
+    node.centroid = centroid
+    node.aabb = centroid.aabb
+
+    return node
+
+cdef TreeNode * search_tree(TreeNode * root, TreeNode * node) nogil:
+
+    if root.left != NULL:
+        if aabb_overlap(root.left.aabb, node.aabb):
+            return search_tree(root.left, node)
+
+    if root.right != NULL:
+        if aabb_overlap(root.right.aabb, node.aabb):
+            return search_tree(root.right, node)
+
+    return root
+
+
+cdef void insert_node(TreeNode * root, TreeNode * new) nogil:
+
+    if root.left != NULL:
+        if aabb_overlap(root.left.aabb, new.aabb):
+            insert_node(root.left, new)
+
+    if root.right != NULL:
+        if aabb_overlap(root.right.aabb, new.aabb):
+            return insert_node(root.right, new)
+
+    if root.left == NULL:
+
+
+
+    return root
 
 
 
@@ -411,3 +469,10 @@ def evaluate_aabbb_checks():
     res = aabb_overlap(&aabb1[0], &aabb2[0])
 
     return np.asarray(aabb1), np.asarray(aabb2), res
+
+
+def evaluate_tree(centroids, new_streamline):
+
+    Centroid
+
+    pass
