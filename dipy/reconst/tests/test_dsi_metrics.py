@@ -22,9 +22,6 @@ def test_dsi_metrics():
     rtop_pdf = dsmodel.fit(data).rtop_pdf(normalized=False)
     assert_almost_equal(rtop_signal_norm, rtop_pdf, 6)
 
-    #from ipdb import set_trace
-    #set_trace()
-
     dsmodel = DiffusionSpectrumModel(gtab, qgrid_size=21, filter_width=4500)
     mevals = np.array(([0.0015, 0.0003, 0.0003], [0.0015, 0.0003, 0.0003]))
     S_0, sticks_0 = MultiTensor(gtab, mevals, S0=100,
