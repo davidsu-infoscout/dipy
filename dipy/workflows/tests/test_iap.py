@@ -42,9 +42,9 @@ def test_iap():
                 'optional_float']
 
     pos_results = ['test', 0, 10, 10.2]
-    opt_results = ['opt_test', 1, 20, 20.2]
+    opt_results = ['opt_test', True, 20, 20.2]
 
-    inputs = inputs_from_results(opt_results, opt_keys)
+    inputs = inputs_from_results(opt_results, opt_keys, optionnal=True)
     inputs.extend(inputs_from_results(pos_results))
 
     sys.argv.extend(inputs)
@@ -62,12 +62,16 @@ def test_iap():
     return_values = dummy_flow(**args)
     npt.assert_array_equal(return_values, all_results + [2.0])
 
-def inputs_from_results(results, keys=None):
+
+def inputs_from_results(results, keys=None, optionnal=False):
     prefix = '--'
     inputs = []
     for idx, result in enumerate(results):
         if keys is not None:
             inputs.append(prefix+keys[idx])
+        if optionnal and str(result) in ['True', 'False']:
+            continue
+
         inputs.append(str(result))
 
     return inputs
@@ -96,3 +100,4 @@ def test_nargs():
     args = parser.get_flow_args()
     var_ints, opt_int = nargs_flow(**args)
     npt.assert_equal(len(var_ints), len(var_args))
+
