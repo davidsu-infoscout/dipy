@@ -88,7 +88,7 @@ class IntrospectiveArgumentParser(arg.ArgumentParser):
                        'action': 'store'}
 
             if is_optionnal:
-                _kwargs["metavar"] = dtype.__name__
+                _kwargs['metavar'] = dtype.__name__
                 if dtype is bool:
                     _kwargs['action'] = 'store_true'
                     default_ = {}
