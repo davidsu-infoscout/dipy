@@ -101,6 +101,9 @@ class IntrospectiveArgumentParser(arg.ArgumentParser):
                 _kwargs['choices'] = [0, 1]
 
 
+            if dtype is tuple:
+                _kwargs['type'] = str
+
             if isnarg:
                  _kwargs['nargs'] = '*'
 
@@ -120,6 +123,8 @@ class IntrospectiveArgumentParser(arg.ArgumentParser):
             arg_type = float
         if 'bool' in text:
             arg_type = bool
+        if 'tuple' in text:
+            arg_type = tuple
 
         return arg_type, is_nargs
 
