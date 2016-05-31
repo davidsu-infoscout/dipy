@@ -5,9 +5,9 @@ from numpy.testing import (assert_array_equal, assert_array_almost_equal,
 from dipy.reconst.odf import (OdfFit, OdfModel, gfa)
 
 from dipy.direction.peaks import (peaks_from_model,
-                                peak_directions,
-                                peak_directions_nl,
-                                reshape_peaks_for_visualization)
+                                  peak_directions,
+                                  peak_directions_nl,
+                                  reshape_peaks_for_visualization)
 from dipy.core.subdivide_octahedron import create_unit_hemisphere
 from dipy.core.sphere import unit_icosahedron
 from dipy.sims.voxel import multi_tensor, all_tensor_evecs, multi_tensor_odf
