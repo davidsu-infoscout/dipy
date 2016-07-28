@@ -224,6 +224,55 @@ def test_order_transparent():
     npt.assert_equal(arr[150, 150][0] > arr[150, 150][1], True)
 
 
+@npt.dec.skipif(not actor.have_vtk or not actor.have_vtk_colors or skip_it)
+@xvfb_it
+def test_custom_interactor():
+
+    ren = window.Renderer()
+    axes = actor.axes()
+    ren.add(axes)
+
+    from ipdb import set_trace
+
+    from dipy.viz.window import vtk
+
+    elog = """
+# StreamVersion 1\n
+RenderEvent 0 0 0 0 0 0 0\n
+EnterEvent 125 299 0 0 0 0 0\n
+MouseMoveEvent 125 299 0 0 0 0 0\n
+MouseMoveEvent 125 298 0 0 0 0 0\n
+MouseMoveEvent 125 297 0 0 0 0 0\n
+MouseMoveEvent 124 295 0 0 0 0 0\n
+"""
+    # showm = window.ShowManager(ren)
+    renwin = vtk.vtkRenderWindow()
+    renwin.AddRenderer(ren)
+    renwin.SetSize(300, 300)
+
+    iren = vtk.vtkRenderWindowInteractor()
+    iren.SetRenderWindow(renwin)
+
+    erec = vtk.vtkInteractorEventRecorder()
+    erec.SetInteractor(iren)
+    # erec.SetFileName('erec.log')
+    erec.ReadFromInputStringOn()
+    # set_trace()
+    erec.SetInputString(elog)
+    erec.EnabledOn()
+
+    iren.Initialize()
+    renwin.Render()
+    # showm.render()
+    # showm.start()
+
+    erec.Play()
+    # Remove the observers so we can go interactive. Without this the "-I"
+    # testing option fails.
+    erec.Off()
+    iren.Start()
+
 if __name__ == '__main__':
 
-    npt.run_module_suite()
+    test_custom_interactor()
+    # npt.run_module_suite()
